@@ -230,7 +230,7 @@ def extract_shorelines(metadata, settings):
             output_idxkeep.append(i)
             output_t_mndwi.append(t_mndwi)
 
-        # create dictionnary of output
+        # create dictionary of output
         output[satname] = {
                 'dates': output_timestamp,
                 'shorelines': output_shoreline,
