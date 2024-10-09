@@ -452,7 +452,11 @@ def reject_outliers(cross_distance, output, settings):
 
         # fill with nans the indices to be removed from cross_distance
         idx_kept = []
-        for date in output['dates']: idx_kept.append(date in dates3)
+        if len(output['dates']) != len(chainage):
+            output_dates_trimmed = output['dates'][:len(chainage)]
+        else:
+            output_dates_trimmed = output['dates']
+        idx_kept = [date in dates3 for date in output_dates_trimmed]
         chainage[~np.array(idx_kept)] = np.nan
         # store in chain_dict
         chain_dict[key] = chainage

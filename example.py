@@ -7,6 +7,7 @@
 #%% 1. Initial settings
 
 # load modules
+%matplotlib qt
 import os
 import numpy as np
 import pickle
@@ -254,14 +255,14 @@ print('Time-series of the shoreline change along the transects saved as:\n%s'%fn
 # load pyfes and the global tide model (may take one minute)
 import pyfes
 # enter the location of where you downloaded the FES2022 data
-filepath = os.path.join(os.pardir,'CoastSat.webgis','aviso-fes-main','data','fes2022b')
+filepath = os.path.join(os.pardir)
 config =  os.path.join(filepath, 'fes2022.yaml')
 handlers = pyfes.load_config(config)
 ocean_tide = handlers['tide']
 load_tide = handlers['radial']
 
 # get polygon centroid
-centroid = np.mean(polygon[0], axis=0)
+centroid = [-123.45468668, 48.65344532]
 print(centroid)
 
 # get tides time-series (15 minutes timestep)
