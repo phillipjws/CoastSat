@@ -289,7 +289,9 @@ def compute_intersection_QC(output, transects, settings):
     along_dist = settings['along_dist']
 
     # loop through each transect
+    n = len(transects.keys()) - 1
     for key in transects.keys():
+        print(f'\rProcessing {key} out of {str(n)}...', end='')
         
         # initialise variables
         std_intersect = np.zeros(len(shorelines))
@@ -315,7 +317,7 @@ def compute_intersection_QC(output, transects, settings):
             p2 = transects[key][-1,:]
             d_line = np.abs(np.cross(p2-p1,sl-p1)/np.linalg.norm(p2-p1))
             # calculate the distance between shoreline points and the origin of the transect
-            d_origin = np.array([np.linalg.norm(sl[k,:] - p1) for k in range(len(sl))])
+            d_origin = np.linalg.norm(sl - p1, axis=1)
             # find the shoreline points that are close to the transects and to the origin
             # the distance to the origin is hard-coded here to 1 km 
             idx_dist = np.logical_and(d_line <= along_dist, d_origin <= 1000)
@@ -391,6 +393,8 @@ def compute_intersection_QC(output, transects, settings):
         #     ax.set_title('%s - %.2f'%(key, prc_over))
         #     ax.legend(loc=3)
         #     print('%s  - removed %d'%(key, sum(np.isnan(med_intersect))))
+
+    print()
 
     return cross_dist
 

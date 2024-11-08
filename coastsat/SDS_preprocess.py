@@ -989,3 +989,58 @@ def get_reference_sl(metadata, settings):
                         'download more images and try again')
     
     return pts_coords
+
+
+def get_reference_sl_from_geojson(sitename, filepath_data, output_epsg):
+    """
+    Loads reference shorelines from a GeoJSON file, if available, and returns a list of coordinate arrays, 
+    one for each feature. Saves the consolidated list as a .pkl for compatibility.
+
+    Arguments:
+    ---------
+    sitename : str
+        Name of the site (used to locate the GeoJSON file).
+    filepath_data : str
+        Path to the directory containing the reference GeoJSON file.
+    output_epsg : int
+        EPSG code for the output spatial reference system.
+
+    Returns:
+    --------
+    list of np.array : List of coordinate arrays for each reference shoreline, or None if not found.
+    """
+    # Paths to GeoJSON and .pkl files
+    fp_ref_shoreline_geojson = os.path.join(filepath_data, f'{sitename}.geojson')
+    fp_ref_shoreline_pkl = os.path.join(filepath_data, f'{sitename}.pkl')
+    
+    # Attempt to load GeoJSON if it exists
+    if os.path.exists(fp_ref_shoreline_geojson):
+        print('Reference shorelines found in GeoJSON. Loading coordinates for each feature.')
+        
+        # Load GeoJSON and reproject if necessary
+        refsl_geojson = gpd.read_file(fp_ref_shoreline_geojson)
+        refsl_geojson = refsl_geojson.to_crs(epsg=output_epsg)
+        
+        # List of coordinate arrays for each shoreline feature
+        ref_sl_list = [np.array(feature.coords) for feature in refsl_geojson.geometry]
+        print(f'Reference shorelines coordinates are in epsg:{refsl_geojson.crs.to_epsg()}')
+        
+        # Save list of shorelines as .pkl for compatibility if not already saved
+        if not os.path.exists(fp_ref_shoreline_pkl):
+            with open(fp_ref_shoreline_pkl, 'wb') as f:
+                pickle.dump(ref_sl_list, f)
+            print(f'Reference shorelines also saved as .pkl at {fp_ref_shoreline_pkl}')
+        
+        return ref_sl_list
+    else:
+        print("No GeoJSON reference shoreline found.")
+        return None
+    
+    
+def get_point_from_geojson(sitename, filepath):
+    fp_tide_point = os.path.join(filepath, f'{sitename}.geojson')
+    points_geojson = gpd.read_file(fp_tide_point)
+    coords = [points_geojson.geometry.x.iloc[0], points_geojson.geometry.y.iloc[0]]
+
+    return coords
+    

@@ -41,8 +41,10 @@ def compute_tide(coords,date_range,time_step,ocean_tide,load_tide):
     lons = coords[0]*np.ones(len(dates))
     lats = coords[1]*np.ones(len(dates))
     # compute heights for ocean tide and loadings
-    ocean_short, ocean_long, _ = pyfes.evaluate_tide(ocean_tide,dates_np,lons,lats,num_threads=1)
-    load_short, load_long, _ = pyfes.evaluate_tide(load_tide,dates_np,lons,lats,num_threads=1)
+    ocean_short, ocean_long, flags_ocean = pyfes.evaluate_tide(ocean_tide,dates_np,lons,lats,num_threads=1)
+    load_short, load_long, flags_load = pyfes.evaluate_tide(load_tide,dates_np,lons,lats,num_threads=1)
+    print("Flags (Ocean):", np.unique(flags_ocean))
+    print("Flags (Load):", np.unique(flags_load))
     # sum up all components and convert from cm to m
     tide_level = (ocean_short + ocean_long + load_short + load_long)/100
     
@@ -300,6 +302,7 @@ def integrate_power_spectrum(dates_rand,tsall,settings,key=None):
     time_step = settings['n_days']*seconds_in_day
     freqs = frequency_grid(t,time_step,settings['n0'])    
     beach_slopes = range_slopes(settings['slope_min'], settings['slope_max'], settings['delta_slope'])
+    beach_slopes = np.clip(beach_slopes, None, settings['slope_max'])
     # integrate power spectrum
     idx_interval = np.logical_and(freqs >= settings['freqs_max'][0], freqs <= settings['freqs_max'][1]) 
     E = np.zeros(beach_slopes.size)
@@ -310,6 +313,7 @@ def integrate_power_spectrum(dates_rand,tsall,settings,key=None):
     delta = settings['delta_slope']/2
     f = sinterpolate.interp1d(beach_slopes, E, kind='linear')
     beach_slopes_interp = range_slopes(settings['slope_min'],settings['slope_max'],delta)
+    beach_slopes_interp = np.clip(beach_slopes_interp, None, settings['slope_max'])
     E_interp = f(beach_slopes_interp)
     # find values below minimum + 5%
     slopes_min = beach_slopes_interp[np.where(E_interp <= np.min(E)*(1+settings['prc_conf']))[0]]

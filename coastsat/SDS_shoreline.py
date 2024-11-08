@@ -200,8 +200,8 @@ def extract_shorelines(metadata, settings):
                     else:
                         # use classification to refine threshold and extract the sand/water interface
                         contours_mwi, t_mndwi = find_wl_contours2(im_ms, im_labels, cloud_mask, im_ref_buffer)
-                except:
-                    print('Could not map shoreline for this image: ' + filenames[i])
+                except Exception as e:
+                    print(f'Could not map shoreline for this image: {filenames[i]}, reason: {e}')
                     continue
     
                 # process the water contours into a shoreline
@@ -524,62 +524,59 @@ def find_wl_contours2(im_ms, im_labels, cloud_mask, im_ref_buffer):
 
 def create_shoreline_buffer(im_shape, georef, image_epsg, pixel_size, settings):
     """
-    Creates a buffer around the reference shoreline. The size of the buffer is 
+    Creates a buffer around each reference shoreline. The size of the buffer is 
     given by settings['max_dist_ref'].
-
-    KV WRL 2018
 
     Arguments:
     -----------
     im_shape: np.array
-        size of the image (rows,columns)
+        size of the image (rows, columns)
     georef: np.array
         vector of 6 elements [Xtr, Xscale, Xshear, Ytr, Yshear, Yscale]
     image_epsg: int
         spatial reference system of the image from which the contours were extracted
     pixel_size: int
-        size of the pixel in metres (15 for Landsat, 10 for Sentinel-2)
+        size of the pixel in meters (15 for Landsat, 10 for Sentinel-2)
     settings: dict with the following keys
         'output_epsg': int
             output spatial reference system
-        'reference_shoreline': np.array
-            coordinates of the reference shoreline
+        'reference_shoreline': list of np.array
+            list of coordinate arrays for each reference shoreline
         'max_dist_ref': int
-            maximum distance from the reference shoreline in metres
+            maximum distance from the reference shoreline in meters
 
     Returns:    
-    -----------
+    -----------    
     im_buffer: np.array
         binary image, True where the buffer is, False otherwise
 
     """
-    # initialise the image buffer
-    im_buffer = np.ones(im_shape).astype(bool)
+    # Initialize the image buffer
+    im_buffer = np.zeros(im_shape, dtype=bool)
 
     if 'reference_shoreline' in settings.keys():
-
-        # convert reference shoreline to pixel coordinates
-        ref_sl = settings['reference_shoreline']
-        ref_sl_conv = SDS_tools.convert_epsg(ref_sl, settings['output_epsg'],image_epsg)
-        ref_sl_pix = SDS_tools.convert_world2pix(ref_sl_conv, georef)
-        ref_sl_pix_rounded = np.round(ref_sl_pix).astype(int)
-
-        # make sure that the pixel coordinates of the reference shoreline are inside the image
-        idx_row = np.logical_and(ref_sl_pix_rounded[:,0] > 0, ref_sl_pix_rounded[:,0] < im_shape[1])
-        idx_col = np.logical_and(ref_sl_pix_rounded[:,1] > 0, ref_sl_pix_rounded[:,1] < im_shape[0])
-        idx_inside = np.logical_and(idx_row, idx_col)
-        ref_sl_pix_rounded = ref_sl_pix_rounded[idx_inside,:]
-
-        # create binary image of the reference shoreline (1 where the shoreline is 0 otherwise)
-        im_binary = np.zeros(im_shape)
-        for j in range(len(ref_sl_pix_rounded)):
-            im_binary[ref_sl_pix_rounded[j,1], ref_sl_pix_rounded[j,0]] = 1
-        im_binary = im_binary.astype(bool)
-
-        # dilate the binary image to create a buffer around the reference shoreline
-        max_dist_ref_pixels = np.ceil(settings['max_dist_ref']/pixel_size)
+        max_dist_ref_pixels = np.ceil(settings['max_dist_ref'] / pixel_size)
         se = morphology.disk(max_dist_ref_pixels)
-        im_buffer = morphology.binary_dilation(im_binary, se)
+
+        for ref_sl in settings['reference_shoreline']:
+            # Convert each shoreline to pixel coordinates
+            ref_sl_conv = SDS_tools.convert_epsg(ref_sl, settings['output_epsg'], image_epsg)
+            ref_sl_pix = SDS_tools.convert_world2pix(ref_sl_conv, georef)
+            ref_sl_pix_rounded = np.round(ref_sl_pix).astype(int)
+
+            # Ensure coordinates are within image bounds
+            idx_row = np.logical_and(ref_sl_pix_rounded[:, 0] > 0, ref_sl_pix_rounded[:, 0] < im_shape[1])
+            idx_col = np.logical_and(ref_sl_pix_rounded[:, 1] > 0, ref_sl_pix_rounded[:, 1] < im_shape[0])
+            idx_inside = np.logical_and(idx_row, idx_col)
+            ref_sl_pix_rounded = ref_sl_pix_rounded[idx_inside, :]
+
+            # Create a binary image for each shoreline
+            im_binary = np.zeros(im_shape, dtype=bool)
+            for j in range(len(ref_sl_pix_rounded)):
+                im_binary[ref_sl_pix_rounded[j, 1], ref_sl_pix_rounded[j, 0]] = True
+
+            # Dilate the binary image to create a buffer around the reference shoreline
+            im_buffer = np.logical_or(im_buffer, morphology.binary_dilation(im_binary, se))
 
     return im_buffer
 

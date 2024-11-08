@@ -607,8 +607,8 @@ def evaluate_classifier(classifier, metadata, settings):
                     # use classification to refine threshold and extract the sand/water interface
                     contours_mwi, t_mndwi = SDS_shoreline.find_wl_contours2(im_ms, im_labels,
                                                                             cloud_mask, im_ref_buffer)
-            except:
-                print('Could not map shoreline for this image: ' + filenames[i])
+            except Exception as e:
+                print(f'Could not map shoreline for this image: {filenames[i]}, reason: {e}')
                 continue
             # process the water contours into a shoreline
             shoreline = SDS_shoreline.process_shoreline(contours_mwi, cloud_mask_adv, im_nodata, georef, image_epsg, settings)
