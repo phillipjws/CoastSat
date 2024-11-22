@@ -118,6 +118,13 @@ def retrieve_images(inputs):
     # check image availabiliy and retrieve list of images
     im_dict_T1, im_dict_T2 = check_images_available(inputs)
 
+    excluded_epsg_codes = inputs.get('excluded_epsg_codes', [])
+
+    # Filter images based on `excluded_epsg_codes` if provided
+    if excluded_epsg_codes:
+        for satname, im_list in im_dict_T1.items():
+            im_dict_T1[satname] = [im_meta for im_meta in im_list if im_meta['bands'][0]['crs'] not in [f'EPSG:{code}' for code in excluded_epsg_codes]]
+
     # if user also wants to download T2 images, merge both lists
     if 'include_T2' in inputs.keys():
         for key in inputs['sat_list']:
@@ -167,6 +174,9 @@ def retrieve_images(inputs):
             t = im_meta['properties']['system:time_start']
             im_timestamp = datetime.fromtimestamp(t/1000, tz=pytz.utc)
             im_date = im_timestamp.strftime('%Y-%m-%d-%H-%M-%S')
+
+            if 'months' in inputs and im_timestamp.month not in inputs['months']:
+                continue
             
             # skip L7 after 2022 as L9 is replacing it
             if im_timestamp.year >= 2022 and satname == 'L7':
@@ -267,9 +277,9 @@ def retrieve_images(inputs):
                     try:    
                         fn_ms, fn_QA = download_tif(image_ee,ee_region,bands['ms'],fp_ms,satname) 
                         break
-                    except:
-                        print('\nDownload failed, trying again...')
-                        time.sleep(60)
+                    except Exception as e:
+                        print(f'\nDownload failed with exception {e}, trying again...')
+                        time.sleep(5)
                         count += 1
                         if count > 100:
                             raise Exception('Too many attempts, crashed while downloading image %s'%im_meta['id'])
@@ -329,9 +339,9 @@ def retrieve_images(inputs):
                         fn_ms, fn_QA = download_tif(image_ee,ee_region_ms,bands['ms'],fp_ms,satname)
                         fn_pan = download_tif(image_ee,ee_region_pan,bands['pan'],fp_pan,satname)
                         break
-                    except:
-                        print('\nDownload failed, trying again...')
-                        time.sleep(60)
+                    except Exception as e:
+                        print(f'\nDownload failed with exception {e}, trying again...')
+                        time.sleep(5)
                         count += 1
                         if count > 100:
                             raise Exception('Too many attempts, crashed while downloading image %s'%im_meta['id'])
@@ -400,9 +410,9 @@ def retrieve_images(inputs):
                         fn_swir = download_tif(image_ee,ee_region_swir,bands['swir'],fp_swir,satname)
                         fn_QA = download_tif(image_ee,ee_region_mask,bands['mask'],fp_mask,satname)
                         break
-                    except:
-                        print('\nDownload failed, trying again...')
-                        time.sleep(60)
+                    except Exception as e:
+                        print(f'\nDownload failed with exception {e}, trying again...')
+                        time.sleep(5)
                         count += 1
                         if count > 100:
                             raise Exception('Too many attempts, crashed while downloading image %s'%im_meta['id'])

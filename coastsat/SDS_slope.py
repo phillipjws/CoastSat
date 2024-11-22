@@ -41,8 +41,8 @@ def compute_tide(coords,date_range,time_step,ocean_tide,load_tide):
     lons = coords[0]*np.ones(len(dates))
     lats = coords[1]*np.ones(len(dates))
     # compute heights for ocean tide and loadings
-    ocean_short, ocean_long, flags_ocean = pyfes.evaluate_tide(ocean_tide,dates_np,lons,lats,num_threads=1)
-    load_short, load_long, flags_load = pyfes.evaluate_tide(load_tide,dates_np,lons,lats,num_threads=1)
+    ocean_short, ocean_long, flags_ocean = pyfes.evaluate_tide(ocean_tide,dates_np,lons,lats)
+    load_short, load_long, flags_load = pyfes.evaluate_tide(load_tide,dates_np,lons,lats)
     print("Flags (Ocean):", np.unique(flags_ocean))
     print("Flags (Load):", np.unique(flags_load))
     # sum up all components and convert from cm to m

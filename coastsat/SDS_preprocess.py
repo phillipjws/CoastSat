@@ -387,7 +387,7 @@ def create_cloud_mask(im_QA, satname, cloud_mask_issue):
         cloud_mask = np.zeros_like(im_QA, dtype=bool)
         for value in cloud_values:
             cloud_mask_temp = np.isin(im_QA, value)         
-            elem = morphology.square(6) # use a square of width 6 pixels
+            elem = morphology.square(8) # use a square of width 6 pixels
             cloud_mask_temp = morphology.binary_opening(cloud_mask_temp, elem) # perform image opening            
             cloud_mask_temp = morphology.remove_small_objects(cloud_mask_temp, min_size=100, connectivity=1)
             cloud_mask = np.logical_or(cloud_mask, cloud_mask_temp)
@@ -1021,9 +1021,17 @@ def get_reference_sl_from_geojson(sitename, filepath_data, output_epsg):
         refsl_geojson = gpd.read_file(fp_ref_shoreline_geojson)
         refsl_geojson = refsl_geojson.to_crs(epsg=output_epsg)
         
-        # List of coordinate arrays for each shoreline feature
-        ref_sl_list = [np.array(feature.coords) for feature in refsl_geojson.geometry]
-        print(f'Reference shorelines coordinates are in epsg:{refsl_geojson.crs.to_epsg()}')
+        ref_sl_list = []
+        for feature in refsl_geojson.geometry:
+            if feature.geom_type == 'MultiLineString':
+                # For MultiLineString, iterate over each line
+                for line in feature.geoms:
+                    ref_sl_list.append(np.array(line.coords))
+            elif feature.geom_type == 'LineString':
+                # For LineString, directly append coordinates
+                ref_sl_list.append(np.array(feature.coords))
+            else:
+                print(f"Unsupported geometry type: {feature.geom_type}")
         
         # Save list of shorelines as .pkl for compatibility if not already saved
         if not os.path.exists(fp_ref_shoreline_pkl):

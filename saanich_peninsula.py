@@ -6,11 +6,14 @@ import os
 import numpy as np
 import pickle
 import warnings
+import gc
 
 warnings.filterwarnings('ignore')
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 try:
     matplotlib.use('Qt5Agg')
@@ -42,7 +45,7 @@ def initial_settings():
     """
     # TODO: Ensure correct GeoJson
     # Load the polygon from a GeoJSON file
-    geojson_polygon = os.path.join(os.pardir, 'planetscope_coastsat', 'user_inputs','pelly_island_north.kml')
+    geojson_polygon = os.path.join(os.pardir, 'planetscope_coastsat', 'user_inputs','saanich_peninsula.kml')
     polygon = SDS_tools.polygon_from_kml(geojson_polygon)
     polygon = SDS_tools.smallest_rectangle(polygon)
 
@@ -53,7 +56,7 @@ def initial_settings():
     # Satellites
     sat_list = ['L5', 'L7', 'L8', 'L9', 'S2']
     # Name of the site
-    sitename = 'PELLY_ISLAND_NORTH'
+    sitename = 'SAANICH_PENINSULA'
 
     # Filepath where data will be stored
     filepath_data = os.path.join(os.getcwd(), 'data')
@@ -66,33 +69,33 @@ def initial_settings():
         'sitename': sitename,
         'filepath': filepath_data,
         # 'S2tile': '08WMC',
-        'months': [7, 8, 9, 10],
+        # 'months': [7, 8, 9, 10],
     }
 
     # Before downloading the images, check how many images are available for your inputs
-    # SDS_download.check_images_available(inputs)
+    SDS_download.check_images_available(inputs)
 
     # Retrieve satellite images from GEE
-    # metadata = SDS_download.retrieve_images(inputs)
+    metadata = SDS_download.retrieve_images(inputs)
     metadata = SDS_download.get_metadata(inputs)
 
     # Settings for the shoreline extraction
     settings = {
         # General parameters:
         'cloud_thresh': 0.1,  # Threshold on maximum cloud cover
-        'dist_clouds': 30,  # Distance around clouds where shoreline can't be mapped
-        'output_epsg': 3155,  # EPSG code of spatial reference system desired for the output
+        'dist_clouds': 25,  # Distance around clouds where shoreline can't be mapped
+        'output_epsg': 3157,  # EPSG code of spatial reference system desired for the output
         # Quality control:
         'check_detection': False,  # If True, shows each shoreline detection to the user for validation
         'adjust_detection': False,  # If True, allows user to adjust the position of each shoreline by changing the threshold
         'save_figure': True,  # If True, saves a figure showing the mapped shoreline for each image
         # [ONLY FOR ADVANCED USERS] Shoreline detection parameters:
         'min_beach_area': 100,  # Minimum area (in metres^2) for an object to be labelled as a beach
-        'min_length_sl': 100,  # Minimum length (in metres) of shoreline perimeter to be valid
-        'cloud_mask_issue': True,  # Switch this parameter to True if sand pixels are masked (in black) on many images
+        'min_length_sl': 50,  # Minimum length (in metres) of shoreline perimeter to be valid
+        'cloud_mask_issue': False,  # Switch this parameter to True if sand pixels are masked (in black) on many images
         'sand_color': 'dark',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
         'pan_off': False,  # True to switch pansharpening off for Landsat 7/8/9 imagery
-        's2cloudless_prob': 70,  # Threshold to identify cloud pixels in the s2cloudless probability mask
+        's2cloudless_prob': 40,  # Threshold to identify cloud pixels in the s2cloudless probability mask
         # Add the inputs defined previously
         'inputs': inputs,
     }
