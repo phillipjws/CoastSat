@@ -113,7 +113,7 @@ def batch_shoreline_detection(metadata, settings, inputs):
     # Preprocess images (cloud masking, pansharpening/down-sampling)
     SDS_preprocess.save_jpg(metadata, settings, use_matplotlib=True)
     # create MP4 timelapse animation
-    fn_animation = os.path.join(inputs['filepath'], inputs['sitename'], '%s_animation_RGB.mp4'%inputs['sitename'])
+    fn_animation = os.path.join(inputs['filepath'], inputs['sitename'], '%s_animation_RGB.gif'%inputs['sitename'])
     fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'preprocessed')
     fps = 4 # frames per second in animation
     SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
@@ -158,7 +158,7 @@ def batch_shoreline_detection(metadata, settings, inputs):
     )
 
     # # create MP4 timelapse animation
-    # fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.mp4'%inputs['sitename'])
+    # fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.gif'%inputs['sitename'])
     # fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'detection')
     # fps = 4 # frames per second in animation
     # SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
@@ -246,7 +246,7 @@ def shoreline_analysis(output, settings):
         'max_std': 15,  # Max std for points around transect
         'max_range': 30,  # Max range for points around transect
         'min_chainage': -100,  # Largest negative value along transect (landwards of transect origin)
-        'multiple_inter': 'auto',  # Mode for removing outliers ('auto', 'nan', 'max')
+        'multiple_inter': 'max',  # Mode for removing outliers ('auto', 'nan', 'max')
         'auto_prc': 0.1,  # Percentage to use in 'auto' mode to switch from 'nan' to 'max'
     }
     cross_distance = SDS_transects.compute_intersection_QC(
@@ -644,15 +644,19 @@ def main(sitenames):
     ocean_tide, load_tide = load_fes_config()
 
     for sitename in sitenames:
-        inputs, settings = initial_settings(sitename)
-        metadata = retrieve_images(inputs)
-        output = batch_shoreline_detection(metadata, settings, inputs)
-        cross_distance, transects = shoreline_analysis(output, settings)
+        try:
+            inputs, settings = initial_settings(sitename)
+            metadata = retrieve_images(inputs)
+            output = batch_shoreline_detection(metadata, settings, inputs)
+            cross_distance, transects = shoreline_analysis(output, settings)
 
-        # Estimate slopes and retrieve tide data for tidal correction
-        slope_est, dates_sat, tides_sat = slope_estimation(settings, cross_distance, output, ocean_tide, load_tide)
-        cross_distance_tidally_corrected = tidal_correction(output, cross_distance, transects, settings, slope_est, dates_sat, tides_sat)
-        cross_distance = time_series_post_processing(transects, settings, cross_distance_tidally_corrected)
+            # Estimate slopes and retrieve tide data for tidal correction
+            slope_est, dates_sat, tides_sat = slope_estimation(settings, cross_distance, output, ocean_tide, load_tide)
+            cross_distance_tidally_corrected = tidal_correction(output, cross_distance, transects, settings, slope_est, dates_sat, tides_sat)
+            cross_distance = time_series_post_processing(transects, settings, cross_distance_tidally_corrected)
+        except Exception as e:
+            print(f'Error on site: {sitename}, e')
+            continue
 
     # plt.show()
 

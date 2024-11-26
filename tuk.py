@@ -65,22 +65,31 @@ def initial_settings():
         'sat_list': sat_list,
         'sitename': sitename,
         'filepath': filepath_data,
-        'S2Tile': '08WNC'
+        'S2tile': '08WNC',
+        'months': [7, 8, 9, 10],
+        'excluded_epsg_codes': ['32609']
     }
+
+    # Before downloading the images, check how many images are available for your inputs
+    SDS_download.check_images_available(inputs)
+
+    # Retrieve satellite images from GEE
+    metadata = SDS_download.retrieve_images(inputs)
+    metadata = SDS_download.get_metadata(inputs)
 
     # Settings for the shoreline extraction
     settings = {
         # General parameters:
-        'cloud_thresh': 0.1,  # Threshold on maximum cloud cover
+        'cloud_thresh': 0.02,  # Threshold on maximum cloud cover
         'dist_clouds': 300,  # Distance around clouds where shoreline can't be mapped
         'output_epsg': 3155,  # EPSG code of spatial reference system desired for the output
         # Quality control:
-        'check_detection': False,  # If True, shows each shoreline detection to the user for validation
+        'check_detection': True,  # If True, shows each shoreline detection to the user for validation
         'adjust_detection': False,  # If True, allows user to adjust the position of each shoreline by changing the threshold
         'save_figure': True,  # If True, saves a figure showing the mapped shoreline for each image
         # [ONLY FOR ADVANCED USERS] Shoreline detection parameters:
         'min_beach_area': 1000,  # Minimum area (in metres^2) for an object to be labelled as a beach
-        'min_length_sl': 100,  # Minimum length (in metres) of shoreline perimeter to be valid
+        'min_length_sl': 150,  # Minimum length (in metres) of shoreline perimeter to be valid
         'cloud_mask_issue': False,  # Switch this parameter to True if sand pixels are masked (in black) on many images
         'sand_color': 'default',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
         'pan_off': False,  # True to switch pansharpening off for Landsat 7/8/9 imagery
@@ -89,7 +98,7 @@ def initial_settings():
         'inputs': inputs,
     }
 
-    return inputs, settings
+    return inputs, settings, metadata
 
 def retrieve_images(inputs):
     """
@@ -114,9 +123,9 @@ def batch_shoreline_detection(metadata, settings, inputs):
     # Preprocess images (cloud masking, pansharpening/down-sampling)
     SDS_preprocess.save_jpg(metadata, settings, use_matplotlib=True)
     # create MP4 timelapse animation
-    fn_animation = os.path.join(inputs['filepath'], inputs['sitename'], '%s_animation_RGB.mp4'%inputs['sitename'])
+    fn_animation = os.path.join(inputs['filepath'], inputs['sitename'], '%s_animation_RGB.gif'%inputs['sitename'])
     fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'preprocessed')
-    fps = 4 # frames per second in animation
+    fps = 20 # frames per second in animation
     SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
     try:
         filepath = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'])
@@ -158,11 +167,11 @@ def batch_shoreline_detection(metadata, settings, inputs):
         encoding='utf-8',
     )
 
-    # # create MP4 timelapse animation
-    # fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.mp4'%inputs['sitename'])
-    # fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'detection')
-    # fps = 4 # frames per second in animation
-    # SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
+    # create MP4 timelapse animation
+    fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.gif'%inputs['sitename'])
+    fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'detection')
+    fps = 20 # frames per second in animation
+    SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
 
     # Plot the mapped shorelines
     if settings.get('save_figure', False):
@@ -205,7 +214,7 @@ def shoreline_analysis(output, settings):
 
     # Option 2: Retrieve transects from geojson file
     geojson_transects = os.path.join(
-        r'C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\transects', f"{settings['inputs']['sitename']}_TRANSECTS_SMALL_LONG.geojson"
+        r'C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\transects', f"{settings['inputs']['sitename']}_TRANSECTS_FIXED.geojson"
     )
     # C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\transects
     # transects = SDS_tools.transects_from_geojson()
@@ -247,7 +256,7 @@ def shoreline_analysis(output, settings):
         'max_std': 15,  # Max std for points around transect
         'max_range': 30,  # Max range for points around transect
         'min_chainage': -100,  # Largest negative value along transect (landwards of transect origin)
-        'multiple_inter': 'auto',  # Mode for removing outliers ('auto', 'nan', 'max')
+        'multiple_inter': 'max',  # Mode for removing outliers ('auto', 'nan', 'max')
         'auto_prc': 0.1,  # Percentage to use in 'auto' mode to switch from 'nan' to 'max'
     }
     cross_distance = SDS_transects.compute_intersection_QC(
@@ -312,19 +321,23 @@ def tidal_correction(output, cross_distance, transects, settings, slope_est, dat
     cross_distance_tidally_corrected = {}
 
     for key in cross_distance.keys():
+        # Ensure all arrays have the same length for broadcasting
         transect_slope = slope_est[key]  # Retrieve the specific slope for each transect
-        correction = (tides_sat - reference_elevation) / transect_slope
-        cross_distance_tidally_corrected[key] = cross_distance[key] + correction
-
-    # Ensure dates and distances align
-    common_length = min(len(dates_sat), len(next(iter(cross_distance_tidally_corrected.values()))))
-    dates_sat = dates_sat[:common_length]
-    tides_sat = tides_sat[:common_length]
-    for key in cross_distance_tidally_corrected.keys():
-        cross_distance_tidally_corrected[key] = cross_distance_tidally_corrected[key][:common_length]
+        
+        # Calculate the minimum common length across dates_sat, tides_sat, and cross_distance[key]
+        common_length = min(len(dates_sat), len(tides_sat), len(cross_distance[key]))
+        
+        # Slice all arrays to this common length
+        sliced_dates_sat = dates_sat[:common_length]
+        sliced_tides_sat = tides_sat[:common_length]
+        sliced_cross_distance = cross_distance[key][:common_length]
+        
+        # Apply tidal correction
+        correction = (sliced_tides_sat - reference_elevation) / transect_slope
+        cross_distance_tidally_corrected[key] = sliced_cross_distance + correction
 
     # Save tidally-corrected time-series to CSV
-    out_dict = {'dates': dates_sat}
+    out_dict = {'dates': sliced_dates_sat}
     for key in cross_distance_tidally_corrected.keys():
         out_dict[key] = cross_distance_tidally_corrected[key]
     df = pd.DataFrame(out_dict)
@@ -544,6 +557,11 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
 
 
 def slope_estimation(settings, cross_distance, output):
+    """
+    Estimate the beach slope along each transect, while graphing the full tide series and then 
+    filtering the acquisition dates for slope estimation.
+    """
+    # Setup for output directory
     fp_slopes = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], 'slope_estimation')
     if not os.path.exists(fp_slopes):
         os.makedirs(fp_slopes)
@@ -562,9 +580,44 @@ def slope_estimation(settings, cross_distance, output):
     centroid = [-132.97826548310042, 69.44147810360226]
     centroid[0] = centroid[0] + 360 if centroid[0] < 0 else centroid[0]
 
-    # Retrieve tide levels at acquisition dates
+    # Generate full time-series tide data for graphing
+    date_range = [
+        pytz.utc.localize(datetime(1984, 1, 1)),
+        pytz.utc.localize(datetime(2025, 1, 1)),
+    ]
+    timestep = 900  # seconds
+    dates_ts, tides_ts = SDS_slope.compute_tide(
+        centroid, date_range, timestep, ocean_tide, load_tide
+    )
+
+    # Retrieve tide levels at each satellite acquisition date
     dates_sat = output['dates']
-    tides_sat = SDS_slope.compute_tide_dates(centroid, output['dates'], ocean_tide, load_tide)
+    tides_sat = SDS_slope.compute_tide_dates(
+        centroid, output['dates'], ocean_tide, load_tide
+    )
+
+    # Plotting the full tide series and satellite acquisition points
+    if settings.get('save_figure', False):
+        fig, ax = plt.subplots(1, 1, figsize=(15, 4), tight_layout=True)
+        ax.grid(which='major', linestyle=':', color='0.5')
+        ax.plot(dates_ts, tides_ts, '-', color='0.6', label='Full Tide Series')
+        ax.plot(
+            dates_sat,
+            tides_sat,
+            '-o',
+            color='k',
+            ms=6,
+            mfc='w',
+            lw=1,
+            label='Image Acquisition',
+        )
+        ax.set(
+            ylabel='Tide Level [m]',
+            xlim=[dates_sat[0], dates_sat[-1]],
+            title='Tide Levels at the Time of Image Acquisition',
+        )
+        ax.legend()
+        fig.savefig(os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], '%s_tide_timeseries.jpg' % settings['inputs']['sitename']), dpi=200)
 
     # Settings for slope estimation
     settings_slope = {
@@ -572,7 +625,7 @@ def slope_estimation(settings, cross_distance, output):
         'slope_max': 0.6,
         'delta_slope': 0.005,
         'n0': 50,
-        'freq_cutoff': 1. / (24 * 3600 * 30),  # 30 day frequency
+        'freq_cutoff': 1. / (24 * 3600 * 30),  # 30-day frequency
         'delta_f': 100 * 1e-10,
         'prc_conf': 0.05,
         'plot_fig': True,
@@ -580,67 +633,58 @@ def slope_estimation(settings, cross_distance, output):
 
     beach_slopes = SDS_slope.range_slopes(settings_slope['slope_min'], settings_slope['slope_max'], settings_slope['delta_slope'])
 
-    settings_slope['date_range'] = [1999, 2022]
-    # re-write in datetime objects (same as shoreline in UTC)
-    settings_slope['date_range'] = [pytz.utc.localize(datetime(settings_slope['date_range'][0],5,1)),
-                                    pytz.utc.localize(datetime(settings_slope['date_range'][1],1,1))]
+    # Define the date range for slope estimation and filter `dates_sat` and `tides_sat`
+    settings_slope['date_range'] = [1995, 2024]
+    date_start = pytz.utc.localize(datetime(2020, 1, 1))
+    date_end = pytz.utc.localize(datetime(2024, 1, 1))
 
-    # Adjust date range for slope estimation, filter `dates_sat` accordingly
-    dates_sat = pd.to_datetime(dates_sat, utc=True).tolist()
-    tides_sat = np.array(tides_sat)
-
-    # Define the date range from settings_slope
-    date_start, date_end = settings_slope['date_range']
-
-    # Filter dates_sat and tides_sat based on the specified date range
+    # Filter the `dates_sat` and `tides_sat` based on date range for slope estimation
     idx_dates = [date_start < date < date_end for date in dates_sat]
     selected_indices = np.where(idx_dates)[0]
-
-    # Apply filtering to dates_sat and tides_sat using selected_indices
-    dates_sat = [dates_sat[i] for i in selected_indices]
-    tides_sat = tides_sat[selected_indices]
+    filtered_dates_sat = [dates_sat[i] for i in selected_indices]
+    filtered_tides_sat = tides_sat[selected_indices]
 
     # Apply the same filtering to each key in cross_distance to ensure lengths match
+    filtered_cross_distance = {}
     for key in cross_distance.keys():
-        cross_distance[key] = cross_distance[key][selected_indices]
+        filtered_cross_distance[key] = cross_distance[key][selected_indices]
 
-    SDS_slope.plot_timestep(dates_sat)
+    # Plot the distribution of time steps for filtered data
+    SDS_slope.plot_timestep(filtered_dates_sat)
+    plt.gcf().savefig(os.path.join(fp_slopes, '0_timestep_distribution.jpg'), dpi=200)
 
-    plt.gcf().savefig(os.path.join(fp_slopes,'0_timestep_distribution.jpg'),dpi=200)
-
+    # Frequency settings and calculations
     settings_slope['n_days'] = 8
+    settings_slope['freqs_max'] = SDS_slope.find_tide_peak(filtered_dates_sat, filtered_tides_sat, settings_slope)
 
-    settings_slope['freqs_max'] = SDS_slope.find_tide_peak(dates_sat,tides_sat,settings_slope)
-
-    print(str(settings_slope['freqs_max']))
-
-    plt.gcf().savefig(os.path.join(fp_slopes,'1_tides_power_spectrum.jpg'),dpi=200)
+    plt.gcf().savefig(os.path.join(fp_slopes, '1_tides_power_spectrum.jpg'), dpi=200)
 
     # Dictionary to store the slope estimates per transect
     slope_est, cis = dict([]), dict([])
     for key in cross_distance.keys():
         # Remove NaNs for the current transect
-        idx_nan = np.isnan(cross_distance[key])
-        dates = [dates_sat[_] for _ in np.where(~idx_nan)[0]]
-        tide = tides_sat[~idx_nan]
-        composite = cross_distance[key][~idx_nan]
+        idx_nan = np.isnan(filtered_cross_distance[key])
+        dates = [filtered_dates_sat[i] for i in range(len(filtered_dates_sat)) if not idx_nan[i]]
+        tide = np.array(filtered_tides_sat)[~idx_nan]
+        composite = np.array(filtered_cross_distance[key])[~idx_nan]
 
         # Apply tidal correction and estimate slope for the current transect
         tsall = SDS_slope.tide_correct(composite, tide, beach_slopes)
-        slope_est[key],cis[key] = SDS_slope.integrate_power_spectrum(dates,tsall,settings_slope, key)
-        plt.gcf().savefig(os.path.join(fp_slopes,'2_energy_curve_%s.jpg'%key),dpi=200)
-        # plot spectrums
-        SDS_slope.plot_spectrum_all(dates,composite,tsall,settings_slope,slope_est[key])
-        plt.gcf().savefig(os.path.join(fp_slopes,'3_slope_spectrum_%s.jpg'%key),dpi=200)
-        print('Beach slope at transect %s: %.3f (%.4f - %.4f)'%(key, slope_est[key], cis[key][0], cis[key][1]))
+        slope_est[key], cis[key] = SDS_slope.integrate_power_spectrum(dates, tsall, settings_slope, key)
+        plt.gcf().savefig(os.path.join(fp_slopes, f'2_energy_curve_{key}.jpg'), dpi=200)
 
-    # Return slope estimates, dates, and tide levels at acquisition times
+        # Plot spectrum for each transect
+        SDS_slope.plot_spectrum_all(dates, composite, tsall, settings_slope, slope_est[key])
+        plt.gcf().savefig(os.path.join(fp_slopes, f'3_slope_spectrum_{key}.jpg'), dpi=200)
+        print(f'Beach slope at transect {key}: {slope_est[key]:.3f} ({cis[key][0]:.4f} - {cis[key][1]:.4f})')
+
+    # Return slope estimates, filtered dates and tides, and the full dates/tides series
     return slope_est, dates_sat, tides_sat
 
 
 def main():
-    inputs, settings = initial_settings()
-    metadata = retrieve_images(inputs)
+    inputs, settings, metadata = initial_settings()
+    # metadata = retrieve_images(inputs)
     output = batch_shoreline_detection(metadata, settings, inputs)
     cross_distance, transects = shoreline_analysis(output, settings)
 

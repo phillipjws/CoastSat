@@ -102,7 +102,7 @@ settings = {
 # [OPTIONAL] preprocess images (cloud masking, pansharpening/down-sampling)
 SDS_preprocess.save_jpg(metadata, settings, use_matplotlib=True)
 # create MP4 timelapse animation
-fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_RGB.mp4'%inputs['sitename'])
+fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_RGB.gif'%inputs['sitename'])
 fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'preprocessed')
 fps = 4 # frames per second in animation
 SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
@@ -131,7 +131,7 @@ gdf.to_file(os.path.join(inputs['filepath'], inputs['sitename'], '%s_output_%s.g
                                 driver='GeoJSON', encoding='utf-8')
 
 # create MP4 timelapse animation
-fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.mp4'%inputs['sitename'])
+fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.gif'%inputs['sitename'])
 fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'detection')
 fps = 4 # frames per second in animation
 SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)

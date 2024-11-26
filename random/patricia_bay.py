@@ -218,7 +218,7 @@ def shoreline_analysis(output, settings):
         'max_std': 15,  # Max std for points around transect
         'max_range': 30,  # Max range for points around transect
         'min_chainage': -100,  # Largest negative value along transect (landwards of transect origin)
-        'multiple_inter': 'auto',  # Mode for removing outliers ('auto', 'nan', 'max')
+        'multiple_inter': 'max',  # Mode for removing outliers ('auto', 'nan', 'max')
         'auto_prc': 0.1,  # Percentage to use in 'auto' mode to switch from 'nan' to 'max'
     }
     cross_distance = SDS_transects.compute_intersection_QC(
