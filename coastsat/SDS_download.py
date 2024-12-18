@@ -281,7 +281,7 @@ def retrieve_images(inputs):
                         print(f'\nDownload failed with exception {e}, trying again...')
                         time.sleep(5)
                         count += 1
-                        if count > 100:
+                        if count > 25:
                             raise Exception('Too many attempts, crashed while downloading image %s'%im_meta['id'])
                         else:
                             continue
@@ -343,7 +343,7 @@ def retrieve_images(inputs):
                         print(f'\nDownload failed with exception {e}, trying again...')
                         time.sleep(5)
                         count += 1
-                        if count > 100:
+                        if count > 25:
                             raise Exception('Too many attempts, crashed while downloading image %s'%im_meta['id'])
                         else:
                             continue
@@ -414,7 +414,7 @@ def retrieve_images(inputs):
                         print(f'\nDownload failed with exception {e}, trying again...')
                         time.sleep(5)
                         count += 1
-                        if count > 100:
+                        if count > 25:
                             raise Exception('Too many attempts, crashed while downloading image %s'%im_meta['id'])
                         else:
                             continue             
@@ -617,16 +617,25 @@ def check_images_available(inputs):
     im_dict_T1 = dict([])
     sum_img = 0
     for satname in inputs['sat_list']:
-        if 'S2tile' not in inputs.keys():
+        # if user specifies an S2 tile and satname is S2
+        if 'S2tile' in inputs.keys() and satname == 'S2':
+            im_list = get_image_info(col_names_T1[satname],satname,polygon,dates_str,
+                                     S2tile=inputs['S2tile'])
+        # if user specifies a Landsat tile (WRS path/row) and satname is Landsat
+        elif 'LandsatWRS' in inputs.keys() and (not satname == 'S2'):
+            im_list = get_image_info(col_names_T1[satname],satname,polygon,dates_str,
+                                     LandsatWRS=inputs['LandsatWRS']) 
+        # if user does not specify a tile
+        else:
+            # get all images (no tile filtering)
             im_list = get_image_info(col_names_T1[satname],satname,polygon,dates_str)
-            # for S2, filter collection to only keep images with same UTM Zone projection (there can be a lot of duplicates)
+            # for S2, filter collection to only keep images with same UTM Zone projection 
+            # (there duplicated images in different UTM projections)
             if satname == 'S2': 
                 im_list = filter_S2_collection(im_list)
-        else : # if user specifies the S2 tile
-            im_list = get_image_info(col_names_T1[satname],satname,polygon,dates_str,S2tile=inputs['S2tile'])
         sum_img = sum_img + len(im_list)
         print('     %s: %d images'%(satname,len(im_list)))
-        im_dict_T1[satname] = im_list          
+        im_dict_T1[satname] = im_list       
         
     print('  Total to download: %d images'%sum_img)
 
@@ -698,21 +707,37 @@ def get_image_info(collection,satname,polygon,dates,**kwargs):
     im_list: list of ee.Image objects
         list with the info for the images
     """
-    while True:
+    max_attempts = 5
+    attempt = 0
+    while attempt < max_attempts:
         try:
             # get info about images
             ee_col = ee.ImageCollection(collection)
-            if 'S2tile' in kwargs: # if user defined a S2 tile, keep images only for that tile
-                col = ee_col.filterBounds(ee.Geometry.Polygon(polygon)).filterDate(dates[0],dates[1]).filterMetadata('MGRS_TILE','equals',kwargs['S2tile']) #58GGP
-                print('Only keeping user-defined S2tile : %s' % kwargs['S2tile'])
-            else: # original code          
+            # if S2tile is specified
+            if satname == 'S2' and 'S2tile' in kwargs: # if user defined a S2 tile, keep images only for that tile
+                col = ee_col.filterBounds(ee.Geometry.Polygon(polygon))\
+                    .filterDate(dates[0],dates[1])\
+                    .filterMetadata('MGRS_TILE','equals',kwargs['S2tile']) 
+                print('\t Only keeping user-defined S2tile : %s' % kwargs['S2tile'])
+            # if Landsat tile is specified
+            elif (not satname == 'S2') and 'LandsatWRS' in kwargs:
+                col = ee_col.filterBounds(ee.Geometry.Polygon(polygon))\
+                    .filterDate(dates[0],dates[1])\
+                    .filterMetadata('WRS_PATH','equals',int(kwargs['LandsatWRS'][:3]))\
+                    .filterMetadata('WRS_ROW','equals',int(kwargs['LandsatWRS'][3:]))
+                print('\t Only keeping user-defined Landsat WRS path/row: %s' % kwargs['LandsatWRS'])
+            # if user does not specify tile
+            else:      
                 col = ee_col.filterBounds(ee.Geometry.Polygon(polygon))\
                             .filterDate(dates[0],dates[1])
+            # convert to dict
             im_list = col.getInfo().get('features')
 
             break
-        except:
-            continue
+        except Exception as e:
+            attempt += 1
+            print(f'Attempt {attempt} failed with exception: {e}')
+            time.sleep(5)
     # remove very cloudy images (>95% cloud cover)
     im_list = remove_cloudy_images(im_list, satname)
     return im_list
@@ -826,7 +851,7 @@ def download_tif(image, polygon, bands, filepath, satname):
                                          'bands': bands,
                                          'filePerBand': True,
                                          'name': 'image'})
-    response = requests.get(ee.data.makeDownloadUrl(download_id))  
+    response = requests.get(ee.data.makeDownloadUrl(download_id), timeout=300)  
     fp_zip = os.path.join(filepath,'temp.zip')
     with open(fp_zip, 'wb') as fd:
       fd.write(response.content) 
@@ -1012,10 +1037,13 @@ def get_s2cloudless(im_list, inputs):
     "Match the list of S2 images with the corresponding s2cloudless images"
     # get s2cloudless collection
     dates = [datetime.strptime(_,'%Y-%m-%d') for _ in inputs['dates']]
+    print(f"Dates used for filtering: {dates[0]} to {dates[1]}")
     polygon = inputs['polygon']
     collection = 'COPERNICUS/S2_CLOUD_PROBABILITY'
     s2cloudless_col = ee.ImageCollection(collection).filterBounds(ee.Geometry.Polygon(polygon))\
-                                                    .filterDate(dates[0],dates[1])
+                                                    .filterDate(dates[0],dates[1])\
+                                                    .limit(5000)
+
     im_list_cloud = s2cloudless_col.getInfo().get('features')
     # get image ids
     indices_cloud = [_['properties']['system:index'] for _ in im_list_cloud]

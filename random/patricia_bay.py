@@ -17,11 +17,14 @@ try:
 except ImportError:
     print('Qt5Agg not available, using default backend.')
 # plt.ion()
+import geopandas as gpd
+from shapely.geometry import MultiLineString
 import pandas as pd
 from scipy import interpolate
 from scipy import stats
 from datetime import datetime, timedelta
 import pytz
+import pyfes
 from pyproj import CRS
 from coastsat import (
     SDS_download,
@@ -37,16 +40,18 @@ def initial_settings():
     Initial settings for the shoreline extraction.
     Returns the inputs dictionary and settings dictionary.
     """
+    # TODO: Ensure correct GeoJson
     # Load the polygon from a GeoJSON file
-    geojson_polygon = os.path.join(os.getcwd(), 'pat_bay.geojson')
-    polygon = SDS_tools.polygon_from_geojson(geojson_polygon)
+    geojson_polygon = os.path.join(os.pardir, 'planetscope_coastsat', 'user_inputs','patricia_bay.kml')
+    polygon = SDS_tools.polygon_from_kml(geojson_polygon)
     polygon = SDS_tools.smallest_rectangle(polygon)
 
     # Date range
-    dates = ['2014-01-01', '2025-01-01']
+    dates = ['2020-07-30', '2024-10-23']
 
+    # TODO: Set sat list and date range
     # Satellites
-    sat_list = ['L7', 'L8', 'L9', 'S2']
+    sat_list = ['L5', 'L7', 'L8', 'L9']
     # Name of the site
     sitename = 'PATRICIA_BAY'
 
@@ -72,9 +77,10 @@ def initial_settings():
         'check_detection': False,  # If True, shows each shoreline detection to the user for validation
         'adjust_detection': False,  # If True, allows user to adjust the position of each shoreline by changing the threshold
         'save_figure': True,  # If True, saves a figure showing the mapped shoreline for each image
+        'skip_L7_slc': True,
         # [ONLY FOR ADVANCED USERS] Shoreline detection parameters:
         'min_beach_area': 1000,  # Minimum area (in metres^2) for an object to be labelled as a beach
-        'min_length_sl': 500,  # Minimum length (in metres) of shoreline perimeter to be valid
+        'min_length_sl': 100,  # Minimum length (in metres) of shoreline perimeter to be valid
         'cloud_mask_issue': False,  # Switch this parameter to True if sand pixels are masked (in black) on many images
         'sand_color': 'default',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
         'pan_off': False,  # True to switch pansharpening off for Landsat 7/8/9 imagery
@@ -89,10 +95,10 @@ def retrieve_images(inputs):
     """
     Retrieve images from GEE and load metadata.
     """
-    # Before downloading the images, check how many images are available for your inputs
+    # # Before downloading the images, check how many images are available for your inputs
     SDS_download.check_images_available(inputs)
 
-    # Retrieve satellite images from GEE
+    # # Retrieve satellite images from GEE
     metadata = SDS_download.retrieve_images(inputs)
 
     # If you have already downloaded the images, just load the metadata file
@@ -100,16 +106,23 @@ def retrieve_images(inputs):
 
     return metadata
 
-def batch_shoreline_detection(metadata, settings):
+def batch_shoreline_detection(metadata, settings, inputs):
     """
     Perform batch shoreline detection.
     Returns the output dictionary.
     """
-    # Preprocess images (cloud masking, pansharpening/down-sampling)
-    SDS_preprocess.save_jpg(metadata, settings, use_matplotlib=True)
+    # # Preprocess images (cloud masking, pansharpening/down-sampling)
+    # SDS_preprocess.save_jpg(metadata, settings, use_matplotlib=True)
+    # # create MP4 timelapse animation
+    # fn_animation = os.path.join(inputs['filepath'], inputs['sitename'], '%s_animation_RGB.gif'%inputs['sitename'])
+    # fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'preprocessed')
+    # fps = 4 # frames per second in animation
+    # SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
 
     # Create a reference shoreline (helps to identify outliers and false detections)
-    settings['reference_shoreline'] = SDS_preprocess.get_reference_sl(metadata, settings)
+    # settings['reference_shoreline'] = SDS_preprocess.get_reference_sl(metadata, settings)
+    settings['reference_shoreline'] = SDS_preprocess.get_reference_sl_from_geojson(settings['inputs']['sitename'], os.path.join(r'C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\reference_shorelines'), settings['output_epsg'])
+    # print(settings['reference_shoreline'])
     # Set the max distance (in meters) allowed from the reference shoreline for a detected shoreline to be valid
     settings['max_dist_ref'] = 100
 
@@ -137,6 +150,12 @@ def batch_shoreline_detection(metadata, settings):
         driver='GeoJSON',
         encoding='utf-8',
     )
+
+    # # create MP4 timelapse animation
+    # fn_animation = os.path.join(inputs['filepath'],inputs['sitename'], '%s_animation_shorelines.gif'%inputs['sitename'])
+    # fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'detection')
+    # fps = 4 # frames per second in animation
+    # SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
 
     # Plot the mapped shorelines
     if settings.get('save_figure', False):
@@ -173,13 +192,16 @@ def shoreline_analysis(output, settings):
     # Now we have to define cross-shore transects over which to quantify the shoreline changes
     # Each transect is defined by two points, its origin and a second point that defines its orientation
 
+    # TODO: Set transects to be drawn
     # Option 1: Draw origin of transect first and then a second point to define the orientation
     # transects = SDS_transects.draw_transects(output, settings)
 
     # Option 2: Retrieve transects from geojson file
     geojson_transects = os.path.join(
-        settings['inputs']['filepath'], settings['inputs']['sitename'], f"{settings['inputs']['sitename']}_transects.geojson"
+        r'C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\transects', f"{settings['inputs']['sitename']}_transects.geojson"
     )
+    # C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\transects
+    # transects = SDS_tools.transects_from_geojson()
     transects = SDS_tools.transects_from_geojson(geojson_transects)
 
     # Plot the transects to make sure they are correct (origin landwards!)
@@ -276,142 +298,37 @@ def shoreline_analysis(output, settings):
 
     return cross_distance, transects
 
-def tidal_correction(output, cross_distance, transects, settings):
-    """
-    Perform tidal correction on the shoreline positions.
-    """
-    import pyfes
 
-    print("Loading FES2022 config file...")
-    # Load FES2022 configuration
-    config_filepath = os.pardir
-    config = os.path.join(config_filepath, 'fes2022.yaml')
-    handlers = pyfes.load_config(config)
-    print("Config file loaded")
-    ocean_tide = handlers['tide']
-    load_tide = handlers['radial']
-
-    # Compute the centroid of the polygon
-    polygon = settings['inputs']['polygon']
-    centroid = [236.5300110966328, 48.65349688063148]
-    print(f"Original centroid: {centroid}")
-    centroid[0] = centroid[0] + 360 if centroid[0] < 0 else centroid[0]
-    print(f"Adjusted centroid: {centroid}")
-
-    # Compute tide levels
-    date_range = [
-        pytz.utc.localize(datetime(2014, 1, 1)),
-        pytz.utc.localize(datetime(2025, 1, 1)),
-    ]
-    timestep = 900  # seconds
-    dates_ts, tides_ts = SDS_slope.compute_tide(
-        centroid, date_range, timestep, ocean_tide, load_tide
-    )
-
-    # Compute tide levels at image acquisition times
-    dates_sat = output['dates']
-    tides_sat = SDS_slope.compute_tide_dates(
-        centroid, output['dates'], ocean_tide, load_tide
-    )
-
-    # Plot tide levels at image acquisition times
-    if settings.get('save_figure', False):
-        fig, ax = plt.subplots(1, 1, figsize=(15, 4), tight_layout=True)
-        ax.grid(which='major', linestyle=':', color='0.5')
-        ax.plot(dates_ts, tides_ts, '-', color='0.6', label='all time-series')
-        ax.plot(
-            dates_sat,
-            tides_sat,
-            '-o',
-            color='k',
-            ms=6,
-            mfc='w',
-            lw=1,
-            label='image acquisition',
-        )
-        ax.set(
-            ylabel='tide level [m]',
-            xlim=[dates_sat[0], dates_sat[-1]],
-            title='Tide levels at the time of image acquisition',
-        )
-        ax.legend()
-        fig.savefig(os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], '%s_tide_timeseries.jpg' % settings['inputs']['sitename']), dpi=200)
-        # Optionally, display the plot
-        # plt.show()
-
-    # Tidal correction along each transect
+def tidal_correction(output, cross_distance, transects, settings, slope_est, dates_sat, tides_sat):
+    """Perform tidal correction along each transect using specific slopes."""
     reference_elevation = 0
-    beach_slope = 0.1
     cross_distance_tidally_corrected = {}
+
     for key in cross_distance.keys():
-        correction = (tides_sat - reference_elevation) / beach_slope
+        transect_slope = slope_est[key]  # Retrieve the specific slope for each transect
+        correction = (tides_sat - reference_elevation) / transect_slope
         cross_distance_tidally_corrected[key] = cross_distance[key] + correction
 
-    # Store the tidally-corrected time-series in a .csv file
-    out_dict = dict([])
-    out_dict['dates'] = dates_sat
+    # Ensure dates and distances align
+    common_length = min(len(dates_sat), len(next(iter(cross_distance_tidally_corrected.values()))))
+    dates_sat = dates_sat[:common_length]
+    tides_sat = tides_sat[:common_length]
+    for key in cross_distance_tidally_corrected.keys():
+        cross_distance_tidally_corrected[key] = cross_distance_tidally_corrected[key][:common_length]
+
+    # Save tidally-corrected time-series to CSV
+    out_dict = {'dates': dates_sat}
     for key in cross_distance_tidally_corrected.keys():
         out_dict[key] = cross_distance_tidally_corrected[key]
     df = pd.DataFrame(out_dict)
-    fn = os.path.join(
-        settings['inputs']['filepath'],
-        settings['inputs']['sitename'],
-        'transect_time_series_tidally_corrected.csv',
-    )
+    fn = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], 'transect_time_series_tidally_corrected.csv')
     df.to_csv(fn, sep=',')
-    print(
-        'Tidally-corrected time-series of the shoreline change along the transects saved as:\n%s'
-        % fn
-    )
-
-    # Plot the time-series of shoreline change (both raw and tidally-corrected)
-    if settings.get('save_figure', False):
-        fig = plt.figure(figsize=[15, 8], tight_layout=True)
-        gs = gridspec.GridSpec(len(cross_distance), 1)
-        gs.update(left=0.05, right=0.95, bottom=0.05, top=0.95, hspace=0.05)
-        for i, key in enumerate(cross_distance.keys()):
-            if np.all(np.isnan(cross_distance[key])):
-                continue
-            ax = fig.add_subplot(gs[i, 0])
-            ax.grid(linestyle=':', color='0.5')
-            ax.set_ylim([-50, 50])
-            ax.plot(
-                output['dates'],
-                cross_distance[key] - np.nanmedian(cross_distance[key]),
-                '-o',
-                ms=6,
-                mfc='w',
-                label='raw',
-            )
-            ax.plot(
-                output['dates'],
-                cross_distance_tidally_corrected[key] - np.nanmedian(cross_distance[key]),
-                '-o',
-                ms=6,
-                mfc='w',
-                label='tidally-corrected',
-            )
-            ax.set_ylabel('distance [m]', fontsize=12)
-            ax.text(
-                0.5,
-                0.95,
-                key,
-                bbox=dict(boxstyle='square', ec='k', fc='w'),
-                ha='center',
-                va='top',
-                transform=ax.transAxes,
-                fontsize=14,
-            )
-            ax.legend()
-        fig.savefig(
-            os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], 'time_series_tidally_corrected.jpg'), dpi=200
-        )
-        # Optionally, display the plot
-        # plt.show()
+    print(f'Tidally-corrected time-series saved as:\n{fn}')
 
     return cross_distance_tidally_corrected
 
-def time_series_post_processing(transects, settings):
+
+def time_series_post_processing(transects, settings, cross_distance_tidally_corrected):
     """
     Post-process the time series data.
     """
@@ -452,9 +369,7 @@ def time_series_post_processing(transects, settings):
     )
     df = pd.read_csv(filepath, parse_dates=['dates'])
     dates = [_.to_pydatetime() for _ in df['dates']]
-    cross_distance = dict([])
-    for key in transects.keys():
-        cross_distance[key] = np.array(df[key])
+    cross_distance = cross_distance_tidally_corrected
 
     # Remove outliers
     # Plot Otsu thresholds for the mapped shorelines
@@ -503,6 +418,8 @@ def time_series_post_processing(transects, settings):
             dates_nonan, chainage
         )
 
+        trend, y = SDS_transects.calculate_trend(dates_seas, chainage_seas)
+
         # Plot seasonal averages
         if settings.get('save_figure', False):
             fig, ax = plt.subplots(1, 1, figsize=[14, 4], tight_layout=True)
@@ -540,6 +457,7 @@ def time_series_post_processing(transects, settings):
                     label=seas,
                     ms=5,
                 )
+            ax.plot(dates_seas,y,'--',color='b', label='trend %.1f m/year'%trend)
             ax.legend(
                 loc='lower left',
                 ncol=6,
@@ -615,17 +533,88 @@ def time_series_post_processing(transects, settings):
             fig.savefig(os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], f'{key}_monthly_average.jpg'))
             # Optionally, display the plot
             # plt.show()
+    return cross_distance
+
+def slope_estimation(settings, cross_distance, output):
+    fp_slopes = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], 'slope_estimation')
+    if not os.path.exists(fp_slopes):
+        os.makedirs(fp_slopes)
+    print(f'Outputs will be saved in {fp_slopes}')
+
+    # Load FES2022 configuration for tide calculation
+    print("Loading FES2022 config file...")
+    config_filepath = os.pardir
+    config = os.path.join(config_filepath, 'fes2022_clipped.yaml')
+    handlers = pyfes.load_config(config)
+    print("Config file loaded")
+    ocean_tide = handlers['tide']
+    load_tide = handlers['radial']
+
+    # Calculate tides at centroid
+    centroid = SDS_preprocess.get_point_from_geojson(settings['inputs']['sitename'], os.path.join(r'U:', 'tide_points'))
+    centroid[0] = centroid[0] + 360 if centroid[0] < 0 else centroid[0]
+
+    # Retrieve tide levels at acquisition dates
+    dates_sat = output['dates']
+    tides_sat = SDS_slope.compute_tide_dates(centroid, output['dates'], ocean_tide, load_tide)
+
+    # Settings for slope estimation
+    settings_slope = {
+        'slope_min': 0.035,
+        'slope_max': 0.6,
+        'delta_slope': 0.005,
+        'n0': 50,
+        'freq_cutoff': 1. / (24 * 3600 * 30),  # 30 day frequency
+        'delta_f': 100 * 1e-10,
+        'prc_conf': 0.05,
+        'plot_fig': True,
+        'date_range': [
+            pytz.utc.localize(datetime(2020, 5, 1)),
+            pytz.utc.localize(datetime(2024, 1, 1))
+        ]
+    }
+
+    # Filter dates and prepare slope calculation
+    idx_dates = [settings_slope['date_range'][0] < date < settings_slope['date_range'][1] for date in dates_sat]
+    dates_sat = [dates_sat[i] for i in np.where(idx_dates)[0]]
+    tides_sat = tides_sat[np.where(idx_dates)[0]]
+    beach_slopes = SDS_slope.range_slopes(settings_slope['slope_min'], settings_slope['slope_max'], settings_slope['delta_slope'])
+
+    # Dictionary to store the slope estimates per transect
+    slope_est, cis = {}, {}
+
+    for key in cross_distance.keys():
+        # Remove NaNs for each transect
+        idx_nan = np.isnan(cross_distance[key])
+        dates = [dates_sat[i] for i in np.where(~idx_nan)[0]]
+        tide = tides_sat[~idx_nan]
+        composite = cross_distance[key][~idx_nan]
+
+        # Estimate slope for current transect
+        tsall = SDS_slope.tide_correct(composite, tide, beach_slopes)
+        slope_est[key], cis[key] = SDS_slope.integrate_power_spectrum(dates, tsall, settings_slope, key)
+        
+        plt.gcf().savefig(os.path.join(fp_slopes, f'2_energy_curve_{key}.jpg'), dpi=200)
+        SDS_slope.plot_spectrum_all(dates, composite, tsall, settings_slope, slope_est[key])
+        plt.gcf().savefig(os.path.join(fp_slopes, f'3_slope_spectrum_{key}.jpg'), dpi=200)
+        print(f'Beach slope at transect {key}: {slope_est[key]:.3f} ({cis[key][0]:.4f} - {cis[key][1]:.4f})')
+
+    return slope_est, dates_sat, tides_sat
+
 
 def main():
     inputs, settings = initial_settings()
     metadata = retrieve_images(inputs)
-    output = batch_shoreline_detection(metadata, settings)
+    output = batch_shoreline_detection(metadata, settings, inputs)
     cross_distance, transects = shoreline_analysis(output, settings)
-    cross_distance_tidally_corrected = tidal_correction(output, cross_distance, transects, settings)
-    time_series_post_processing(transects, settings)
 
-    # Optionally, keep all plots open at the end of the script
-    plt.show()
+    # Estimate slopes and retrieve tide data for tidal correction
+    slope_est, dates_sat, tides_sat = slope_estimation(settings, cross_distance, output)
+    cross_distance_tidally_corrected = tidal_correction(output, cross_distance, transects, settings, slope_est, dates_sat, tides_sat)
+    cross_distance = time_series_post_processing(transects, settings, cross_distance_tidally_corrected)
+
+    # plt.show()
+
 
 if __name__ == '__main__':
     main()

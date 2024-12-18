@@ -23,6 +23,7 @@ from scipy import stats, interpolate
 import pyproj
 import pandas as pd
 import imageio
+import imageio.v3 as iio
 
 ###################################################################################################
 # COORDINATES CONVERSION FUNCTIONS
@@ -881,11 +882,9 @@ def smallest_rectangle(polygon):
 def make_animation_mp4(filepath_images, fps, fn_out):
     "function to create an animation with the saved figures"
     with imageio.get_writer(fn_out, mode='I', duration=1000/fps) as writer:
-        filenames = os.listdir(filepath_images)
-        # order chronologically
-        filenames = np.sort(filenames)
-        for i in range(len(filenames)):
-            image = imageio.imread(os.path.join(filepath_images,filenames[i]))
+        filenames = (os.path.join(filepath_images, f) for f in sorted(os.listdir(filepath_images)) if os.path.isfile(os.path.join(filepath_images, f)))
+        for filepath in filenames:
+            image = iio.imread(filepath)
             writer.append_data(image)
     print('Animation has been generated (using %d frames per second) and saved at %s'%(fps,fn_out))
     
