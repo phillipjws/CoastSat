@@ -659,6 +659,7 @@ def create_jpg(im_ms, cloud_mask, date, satname, filepath, use_matplotlib=True):
     
         # save figure
         fig.savefig(os.path.join(filepath, date + '_' + satname + '.jpg'), dpi=150)
+        plt.close(fig)
 
 def save_jpg(metadata, settings, use_matplotlib=False):
     """
