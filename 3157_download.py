@@ -15,7 +15,7 @@ def initial_settings(sitename):
     dates = ['1984-01-01', '2025-01-01']
 
     # Satellites
-    sat_list = ['S2']
+    sat_list = ['L5', 'L7', 'L8', 'L9', 'S2']
 
     # Filepath where data will be stored
     filepath_data = os.path.join(r'D:\coastsat_data')
@@ -29,7 +29,7 @@ def initial_settings(sitename):
         'filepath': filepath_data,
         # 'excluded_epsg_codes': ['32608'],
         # 'LandsatWRS': '054022',
-        'S2tile': '10UDU',
+        # 'S2tile': '09UVA',
         # 'months': [7, 8, 9, 10],
         # 'skip_L7_SLC': True
     }
@@ -40,7 +40,7 @@ def initial_settings(sitename):
 
 
 if __name__ == "__main__":
-    dir = r'D:\Inputs'
+    dir = r'D:\Inputs\3157'
     log_file = r'D:\Inputs\process_log.txt'
 
     with open(log_file, 'w') as log:
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         log.write("-" * 40 + "\n")
 
     for file in os.listdir(dir):
-        if file.endswith('.kml') and file.startswith(('SAANICH_PENINSULA_2', 'SAANICH_PENINSULA_1')):
+        if file.endswith('.kml') and file.startswith('BC_'):
             filename = os.path.splitext(file)[0]
             try:
                 start_time = time.time()  # Start the timer

@@ -71,7 +71,7 @@ def initial_settings(sitename):
         'filepath': filepath_data,
         # 'excluded_epsg_codes': ['32609'],
         # 'LandsatWRS': '055022',
-        # 'S2tile': '09UVA',
+        'S2tile': '10UDU',
         # 'months': [7, 8, 9, 10],
         # 'skip_L7_SLC': True
     }
