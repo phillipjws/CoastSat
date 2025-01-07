@@ -7,12 +7,12 @@ def initial_settings(sitename):
     Initial settings for the shoreline extraction.
     Returns the inputs dictionary and settings dictionary.
     """
-    geojson_polygon = os.path.join(r'D:\Inputs', f'{sitename}.kml')
+    geojson_polygon = os.path.join(r'D:\Inputs\3157', f'{sitename}.kml')
     polygon = SDS_tools.polygon_from_kml(geojson_polygon)
     polygon = SDS_tools.smallest_rectangle(polygon)
 
     # Date range
-    dates = ['1984-01-01', '2025-01-01']
+    dates = ['1984-01-01', '2026-01-01']
 
     # Satellites
     sat_list = ['L5', 'L7', 'L8', 'L9', 'S2']
@@ -52,6 +52,7 @@ if __name__ == "__main__":
         if file.endswith('.kml') and file.startswith('BC_'):
             filename = os.path.splitext(file)[0]
             try:
+                print(f'Staring site: {filename}')
                 start_time = time.time()  # Start the timer
                 initial_settings(filename)
                 end_time = time.time()  # End the timer

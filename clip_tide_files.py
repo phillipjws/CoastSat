@@ -15,13 +15,12 @@ def get_geometry_from_geojson(geojson_file):
 def clip_to_region(nc_files, geometry, output_dir):
     """
     Clips NetCDF files to the specified region and saves the clipped files.
-    Longitudes are kept in the 0° to 360° range, and filenames are not altered.
+    Longitudes are kept in the 0 to 360 range, and filenames are not altered.
     """
     coords = np.array(geometry["coordinates"][0])
     lon_min, lon_max = coords[:, 0].min(), coords[:, 0].max()
     lat_min, lat_max = coords[:, 1].min(), coords[:, 1].max()
 
-    # Ensure longitude bounds are in 0° to 360° range
     if lon_min < 0:
         lon_min += 360
     if lon_max < 0:
@@ -64,7 +63,7 @@ def main():
     # Output directory for clipped files
     output_dir = r"C:\Users\psteeves\coastal\clipped_files"
 
-    # Load the region geometry
+    # Load the geometry
     geometry = get_geometry_from_geojson(geojson_file)
 
     # Find NetCDF files

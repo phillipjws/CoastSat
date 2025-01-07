@@ -51,7 +51,7 @@ def initial_settings(sitename):
     polygon = SDS_tools.smallest_rectangle(polygon)
 
     # Date range
-    dates = ['1984-01-01', '2025-01-01']
+    dates = ['1984-01-01', '2026-01-01']
 
     # TODO: Set sat list and date range
     # Satellites
@@ -716,7 +716,7 @@ def slope_estimation(settings, cross_distance, output):
     # Generate full time-series tide data for graphing
     date_range = [
         pytz.utc.localize(datetime(1984, 1, 1)),
-        pytz.utc.localize(datetime(2025, 1, 1)),
+        pytz.utc.localize(datetime(2026, 1, 1)),
     ]
     timestep = 900  # seconds
     dates_ts, tides_ts = SDS_slope.compute_tide(
@@ -771,9 +771,9 @@ def slope_estimation(settings, cross_distance, output):
     beach_slopes = SDS_slope.range_slopes(settings_slope['slope_min'], settings_slope['slope_max'], settings_slope['delta_slope'])
 
     # Define the date range for slope estimation and filter `dates_sat` and `tides_sat`
-    settings_slope['date_range'] = [2020, 2024]
+    settings_slope['date_range'] = [2020, 2025]
     date_start = pytz.utc.localize(datetime(2020, 1, 1))
-    date_end = pytz.utc.localize(datetime(2024, 1, 1))
+    date_end = pytz.utc.localize(datetime(2025, 1, 1))
 
     # Filter the `dates_sat` and `tides_sat` based on date range for slope estimation
     idx_dates = [date_start < date < date_end for date in dates_sat]
