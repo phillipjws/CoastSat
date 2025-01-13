@@ -80,22 +80,22 @@ def initial_settings(sitename):
     # SDS_download.check_images_available(inputs)
 
     # Retrieve satellite images from GEE
-    metadata = SDS_download.retrieve_images(inputs)
+    # metadata = SDS_download.retrieve_images(inputs)
     metadata = SDS_download.get_metadata(inputs)
 
     # Settings for the shoreline extraction
     settings = {
         # General parameters:
         'cloud_thresh': 0.04,  # Threshold on maximum cloud cover
-        'dist_clouds': 25,  # Distance around clouds where shoreline can't be mapped
+        'dist_clouds': 300,  # Distance around clouds where shoreline can't be mapped
         'output_epsg': 3157,  # EPSG code of spatial reference system desired for the output
         # Quality control:
         'check_detection': False,  # If True, shows each shoreline detection to the user for validation
         'adjust_detection': False,  # If True, allows user to adjust the position of each shoreline by changing the threshold
         'save_figure': True,  # If True, saves a figure showing the mapped shoreline for each image
         # [ONLY FOR ADVANCED USERS] Shoreline detection parameters:
-        'min_beach_area': 100,  # Minimum area (in metres^2) for an object to be labelled as a beach
-        'min_length_sl': 300,  # Minimum length (in metres) of shoreline perimeter to be valid
+        'min_beach_area': 1000,  # Minimum area (in metres^2) for an object to be labelled as a beach
+        'min_length_sl': 500,  # Minimum length (in metres) of shoreline perimeter to be valid
         'cloud_mask_issue': False,  # Switch this parameter to True if sand pixels are masked (in black) on many images
         'sand_color': 'default',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
         'pan_off': False,  # True to switch pansharpening off for Landsat 7/8/9 imagery
@@ -147,7 +147,7 @@ def batch_shoreline_detection(metadata, settings, inputs):
     # settings['reference_shoreline'] = SDS_preprocess.get_reference_sl(metadata, settings)
     settings['reference_shoreline'] = SDS_preprocess.get_reference_sl_from_geojson(f"REFERENCE_SHORELINE_{settings['inputs']['sitename']}", os.path.join(r'D:\Inputs\reference_shorelines'), settings['output_epsg'])
     # Set the max distance (in meters) allowed from the reference shoreline for a detected shoreline to be valid
-    settings['max_dist_ref'] = 500
+    settings['max_dist_ref'] = 100
 
     # Extract shorelines from all images (also saves output.pkl and shorelines.kml)
     output = SDS_shoreline.extract_shorelines(metadata, settings)
@@ -342,7 +342,11 @@ def tidal_correction(output, cross_distance, transects, settings, slope_est, dat
         cross_distance[key] = cross_distance[key][:common_length]
 
         # Perform tidal correction
-        transect_slope = slope_est[key]  # Retrieve the specific slope for each transect
+        try:
+            transect_slope = slope_est[key]  # Retrieve the specific slope for each transect
+        except Exception as e:
+            print(f'Exception: {e} occurred on key: {key}, setting transect_slope to default')
+            transect_slope = 0.1
         correction = (tides_sat - reference_elevation) / transect_slope
 
         cross_distance_tidally_corrected[key] = cross_distance[key] + correction
@@ -510,10 +514,10 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
     # Remove outliers in the time-series (despiking)
     settings_outliers = {
         'otsu_threshold': [
-            -1,
+            -.5,
             0,
         ],  # Min and max intensity threshold used for contouring the shoreline
-        'max_cross_change': 100,  # Maximum cross-shore change observable between consecutive timesteps
+        'max_cross_change': 50,  # Maximum cross-shore change observable between consecutive timesteps
         'plot_fig': True,  # Whether to plot the intermediate steps
     }
     cross_distance = SDS_transects.reject_outliers(
@@ -664,7 +668,7 @@ def slope_estimation(settings, cross_distance, output):
     fp_slopes = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], 'slope_estimation')
     if not os.path.exists(fp_slopes):
         os.makedirs(fp_slopes)
-    print(f'Outputs will be saved in {fp_slopes}')
+    print(f'Outputs will be saved in {fp_slopes}.')
 
     if 'S2' in output['satname']:
         idx_S2 = np.array([_ == 'S2' for _ in output['satname']])
@@ -696,7 +700,7 @@ def slope_estimation(settings, cross_distance, output):
                         'otsu_threshold':     [-.5,0],        # min and max intensity threshold use for contouring the shoreline
                         'plot_fig':           False,           # whether to plot the intermediate steps
                         }
-    # cross_distance = SDS_transects.reject_outliers(cross_distance,output,settings_outliers)
+    cross_distance = SDS_transects.reject_outliers(cross_distance,output,settings_outliers)
 
 
 
@@ -859,11 +863,16 @@ def calculate_and_save_trends(transects, cross_distance_tidally_corrected, outpu
     # Create a GeoDataFrame for transects
     transect_data = []
     for key, geometry in transects.items():
+
+        seasonal_plot_filename = f'{key}_seasonal_average.jpg'
+        seasonal_plot_path = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'], seasonal_plot_filename)
+
         transect_data.append({
             'id': key,
             'geometry': MultiLineString([geometry]),
             'trend': trend_dict.get(key, np.nan),
-            'slope': slope_est[key]
+            'slope': slope_est[key],
+            'plot_path': seasonal_plot_path
         })
 
     # Create GeoDataFrame
@@ -881,7 +890,7 @@ def calculate_and_save_trends(transects, cross_distance_tidally_corrected, outpu
 
 def main():
     for filename in os.listdir(r'D:\Inputs'):
-        if filename.startswith(('SAANICH_PENINSULA_3', 'SAANICH_PENINSULA_2', 'SAANICH_PENINSULA_1')) and filename.endswith('.kml'):
+        if filename.startswith('SAANICH_PENINSULA') and filename.endswith('.kml'):
             sitename = filename[:-4]
             print(f'Starting site: {sitename}')
 

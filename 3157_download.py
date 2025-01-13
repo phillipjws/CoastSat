@@ -2,6 +2,11 @@ import os
 import time
 from coastsat import SDS_download, SDS_tools
 
+udu = ['BC_213', 'BC_212', 'BC_203', 'BC_204', 'BC_202', 'BC_8']
+udv = ['BC_197', 'BC_201', 'BC_211', 'BC_177']
+ucv = ['BC_176', 'BC_170', 'BC_173', 'BC_169', 'BC_168', 'BC_171', 'BC_172']
+ucu = ['BC_9', 'BC_12', 'BC_13']
+
 def initial_settings(sitename):
     """
     Initial settings for the shoreline extraction.
@@ -18,7 +23,7 @@ def initial_settings(sitename):
     sat_list = ['L5', 'L7', 'L8', 'L9', 'S2']
 
     # Filepath where data will be stored
-    filepath_data = os.path.join(r'D:\coastsat_data')
+    filepath_data = os.path.join(r'D:\coastsat_data\3157')
 
     # Put all the inputs into a dictionary
     inputs = {
@@ -27,12 +32,22 @@ def initial_settings(sitename):
         'sat_list': sat_list,
         'sitename': sitename,
         'filepath': filepath_data,
-        # 'excluded_epsg_codes': ['32608'],
+        # 'excluded_epsg_codes': ['32609', '32608'],
         # 'LandsatWRS': '054022',
         # 'S2tile': '09UVA',
         # 'months': [7, 8, 9, 10],
         # 'skip_L7_SLC': True
     }
+    if sitename in udu:
+        inputs['S2tile'] = '10UDU'
+    elif sitename in udv:
+        inputs['S2tile'] = '10UDV'
+    elif sitename in ucv:
+        inputs['S2tile'] = '10UCV'
+    elif sitename in ucu:
+        inputs['S2tile'] = '10UCU'
+
+    print(f"inputs['sitename']: {inputs['sitename']}")
 
     # Retrieve satellite images from GEE
     metadata = SDS_download.retrieve_images(inputs)
