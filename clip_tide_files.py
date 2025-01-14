@@ -30,7 +30,7 @@ def clip_to_region(nc_files, geometry, output_dir):
         print(f"Processing: {file_path}")
         ds = xr.open_dataset(file_path, engine="netcdf4")
 
-        # Ensure longitude is in 0° to 360° format
+        # Ensure longitude is in 0 to 360 format
         if ds.lon.min() < 0:
             ds = ds.assign_coords({"lon": (ds.lon % 360)}).sortby("lon")
 

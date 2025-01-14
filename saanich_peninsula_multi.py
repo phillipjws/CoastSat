@@ -135,13 +135,13 @@ def batch_shoreline_detection(metadata, settings, inputs):
     fp_images = os.path.join(inputs['filepath'], inputs['sitename'], 'jpg_files', 'preprocessed')
     fps = 10 # frames per second in animation
     SDS_tools.make_animation_mp4(fp_images, fps, fn_animation)
-    try:
-        filepath = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'])
-        with open(os.path.join(filepath, settings['inputs']['sitename'] + '_output' + '.pkl'), 'rb') as f:
-            output = pickle.load(f)
-            return output  # If the file exists, return `output` here and exit the function
-    except FileNotFoundError:
-        pass
+    # try:
+    #     filepath = os.path.join(settings['inputs']['filepath'], settings['inputs']['sitename'])
+    #     with open(os.path.join(filepath, settings['inputs']['sitename'] + '_output' + '.pkl'), 'rb') as f:
+    #         output = pickle.load(f)
+    #         return output  # If the file exists, return `output` here and exit the function
+    # except FileNotFoundError:
+    #     pass
 
     # Create a reference shoreline (helps to identify outliers and false detections)
     # settings['reference_shoreline'] = SDS_preprocess.get_reference_sl(metadata, settings)
@@ -524,6 +524,7 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
         cross_distance, output, settings_outliers
     )
 
+    trend_dict = dict([])
     # Seasonal averaging
     # Compute seasonal averages along each transect
     season_colors = {'DJF': 'C3', 'MAM': 'C1', 'JJA': 'C2', 'SON': 'C0'}
@@ -540,7 +541,7 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
         )
 
         trend, y = SDS_transects.calculate_trend(dates_seas, chainage_seas)
-
+        trend_dict[key] = trend
         # Plot seasonal averages
         if settings.get('save_figure', False):
             fig, ax = plt.subplots(1, 1, figsize=[14, 4], tight_layout=True)
@@ -656,7 +657,7 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
             plt.close(fig)
             # Optionally, display the plot
             # plt.show()
-    return cross_distance
+    return cross_distance, trend_dict
 
 
 def slope_estimation(settings, cross_distance, output):
@@ -832,7 +833,7 @@ def slope_estimation(settings, cross_distance, output):
             plt.close(fig)
             print(f'Beach slope at transect {key}: {slope_est[key]:.3f} ({cis[key][0]:.4f} - {cis[key][1]:.4f})')
         except Exception as e:
-            print(f'Error processting transect {key}: {e}')
+            print(f'Error processing transect {key}: {e}')
             print(f"Setting default slope for transect {key} to 0.1 due to error.")
             slope_est[key], cis[key] = 0.1, (0.1, 0.1)
 
@@ -840,25 +841,25 @@ def slope_estimation(settings, cross_distance, output):
     return slope_est, dates_sat, tides_sat
 
 
-def calculate_and_save_trends(transects, cross_distance_tidally_corrected, output, settings, slope_est):
+def calculate_and_save_trends(transects, cross_distance_tidally_corrected, output, settings, slope_est, trend_dict):
     """
     Calculate the shoreline change trend for each transect and save it to a GeoJSON.
     """
-    trend_dict = {}
-    for key in transects.keys():
-        # Get valid distances and dates
-        distances = cross_distance_tidally_corrected[key]
-        valid_idx = ~np.isnan(distances)
-        valid_dates = np.array(output['dates'])[valid_idx]
-        valid_distances = distances[valid_idx]
+    # trend_dict = {}
+    # for key in transects.keys():
+    #     # Get valid distances and dates
+    #     distances = cross_distance_tidally_corrected[key]
+    #     valid_idx = ~np.isnan(distances)
+    #     valid_dates = np.array(output['dates'])[valid_idx]
+    #     valid_distances = distances[valid_idx]
 
-        if len(valid_distances) > 1:
-            trend, _ = SDS_transects.calculate_trend(valid_dates, valid_distances)
-        else:
-            trend = np.nan  # Not enough data to calculate trend
+    #     if len(valid_distances) > 1:
+    #         trend, _ = SDS_transects.calculate_trend(valid_dates, valid_distances)
+    #     else:
+    #         trend = np.nan  # Not enough data to calculate trend
 
-        trend_dict[key] = trend
-        print(f"Transect {key}: Trend = {trend}")
+    #     trend_dict[key] = trend
+    #     print(f"Transect {key}: Trend = {trend}")
 
     # Create a GeoDataFrame for transects
     transect_data = []
@@ -871,7 +872,7 @@ def calculate_and_save_trends(transects, cross_distance_tidally_corrected, outpu
             'id': key,
             'geometry': MultiLineString([geometry]),
             'trend': trend_dict.get(key, np.nan),
-            'slope': slope_est[key],
+            'slope': slope_est.get(key, 0.1),
             'plot_path': seasonal_plot_path
         })
 
@@ -902,9 +903,9 @@ def main():
             # Estimate slopes and retrieve tide data for tidal correction
             slope_est, dates_sat, tides_sat = slope_estimation(settings, cross_distance, output)
             cross_distance_tidally_corrected = tidal_correction(output, cross_distance, transects, settings, slope_est, dates_sat, tides_sat)
-            trend_dict = calculate_and_save_trends(transects, cross_distance_tidally_corrected, output, settings, slope_est)
             improved_transects_plot(output, transects, cross_distance_tidally_corrected, settings)
-            cross_distance = time_series_post_processing(transects, settings, cross_distance_tidally_corrected, output)
+            cross_distance, trend_dict = time_series_post_processing(transects, settings, cross_distance_tidally_corrected, output)
+            trend_dict = calculate_and_save_trends(transects, cross_distance_tidally_corrected, output, settings, slope_est, trend_dict)
 
     # plt.show()
 
