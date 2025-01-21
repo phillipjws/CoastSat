@@ -497,7 +497,7 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
         fig, ax = plt.subplots(1, 1, figsize=[12, 5], tight_layout=True)
         ax.grid(which='major', ls=':', lw=0.5, c='0.5')
         ax.plot(output['dates'], output['MNDWI_threshold'], 'o-', mfc='w')
-        ax.axhline(y=-1, ls='--', c='r', label='otsu_threshold limits')
+        ax.axhline(y=-0.5, ls='--', c='r', label='otsu_threshold limits')
         ax.axhline(y=0, ls='--', c='r')
         ax.set(
             title='Otsu thresholds on MNDWI for the %d shorelines mapped'
@@ -687,12 +687,12 @@ def slope_estimation(settings, cross_distance, output):
 
     # compute intersections
     settings_transects = { # parameters for computing intersections
-                        'along_dist':          25,        # along-shore distance to use for computing the intersection
+                        'along_dist':          50,        # along-shore distance to use for computing the intersection
                         'min_points':          3,         # minimum number of shoreline points to calculate an intersection
                         'max_std':             15,        # max std for points around transect
                         'max_range':           30,        # max range for points around transect
                         'min_chainage':        -100,      # largest negative value along transect (landwards of transect origin)
-                        'multiple_inter':      'auto',    # mode for removing outliers ('auto', 'nan', 'max')
+                        'multiple_inter':      'max',    # mode for removing outliers ('auto', 'nan', 'max')
                         'auto_prc':            0.1,       # percentage of the time that multiple intersects are present to use the max
                         }
     cross_distance = SDS_transects.compute_intersection_QC(output, transects, settings_transects) 
