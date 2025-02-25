@@ -71,7 +71,7 @@ def initial_settings(sitename):
         'filepath': filepath_data,
         # 'excluded_epsg_codes': ['32609'],
         # 'LandsatWRS': '055022',
-        # 'S2tile': '08UPE',
+        'S2tile': '08UPE',
         # 'months': [7, 8, 9, 10],
         # 'skip_L7_SLC': True
     }
@@ -80,13 +80,13 @@ def initial_settings(sitename):
     # SDS_download.check_images_available(inputs)
 
     # Retrieve satellite images from GEE
-    # metadata = SDS_download.retrieve_images(inputs)
+    metadata = SDS_download.retrieve_images(inputs)
     metadata = SDS_download.get_metadata(inputs)
 
     # Settings for the shoreline extraction
     settings = {
         # General parameters:
-        'cloud_thresh': 0.04,  # Threshold on maximum cloud cover
+        'cloud_thresh': 0.15,  # Threshold on maximum cloud cover
         'dist_clouds': 50,  # Distance around clouds where shoreline can't be mapped
         'output_epsg': 3155,  # EPSG code of spatial reference system desired for the output
         # Quality control:
@@ -99,7 +99,7 @@ def initial_settings(sitename):
         'cloud_mask_issue': False,  # Switch this parameter to True if sand pixels are masked (in black) on many images
         'sand_color': 'default',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
         'pan_off': False,  # True to switch pansharpening off for Landsat 7/8/9 imagery
-        's2cloudless_prob': 20,  # Threshold to identify cloud pixels in the s2cloudless probability mask
+        's2cloudless_prob': 40,  # Threshold to identify cloud pixels in the s2cloudless probability mask
         # Add the inputs defined previously
         'inputs': inputs,
     }
@@ -266,7 +266,7 @@ def shoreline_analysis(output, settings):
         'min_points': 3,  # Minimum number of shoreline points to calculate an intersection
         'max_std': 15,  # Max std for points around transect
         'max_range': 30,  # Max range for points around transect
-        'min_chainage': -100,  # Largest negative value along transect (landwards of transect origin)
+        'min_chainage': -50,  # Largest negative value along transect (landwards of transect origin)
         'multiple_inter': 'max',  # Mode for removing outliers ('auto', 'nan', 'max')
         'auto_prc': 0.1,  # Percentage to use in 'auto' mode to switch from 'nan' to 'max'
     }
@@ -513,7 +513,7 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
             -0.5,
             0,
         ],  # Min and max intensity threshold used for contouring the shoreline
-        'max_cross_change': 50,  # Maximum cross-shore change observable between consecutive timesteps
+        'max_cross_change': 30,  # Maximum cross-shore change observable between consecutive timesteps
         'plot_fig': True,  # Whether to plot the intermediate steps
     }
     cross_distance = SDS_transects.reject_outliers(
@@ -688,13 +688,13 @@ def slope_estimation(settings, cross_distance, output):
                         'min_points':          3,         # minimum number of shoreline points to calculate an intersection
                         'max_std':             15,        # max std for points around transect
                         'max_range':           30,        # max range for points around transect
-                        'min_chainage':        -100,      # largest negative value along transect (landwards of transect origin)
+                        'min_chainage':        -50,      # largest negative value along transect (landwards of transect origin)
                         'multiple_inter':      'max',    # mode for removing outliers ('auto', 'nan', 'max')
                         'auto_prc':            0.1,       # percentage of the time that multiple intersects are present to use the max
                         }
     cross_distance = SDS_transects.compute_intersection_QC(output, transects, settings_transects) 
     # remove outliers in the time-series (coastal despiking)
-    settings_outliers = {'max_cross_change':   40,             # maximum cross-shore change observable between consecutive timesteps
+    settings_outliers = {'max_cross_change':   30,             # maximum cross-shore change observable between consecutive timesteps
                         'otsu_threshold':     [-.5,0],        # min and max intensity threshold use for contouring the shoreline
                         'plot_fig':           False,           # whether to plot the intermediate steps
                         }

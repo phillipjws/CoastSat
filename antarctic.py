@@ -46,7 +46,7 @@ def initial_settings(sitename):
     """
     # TODO: Ensure correct GeoJson
     # Load the polygon from a GeoJSON file
-    geojson_polygon = os.path.join(r'D:\Inputs', f'{sitename}.kml')
+    geojson_polygon = os.path.join(r'D:\Inputs\antarctica', f'{sitename}.kml')
     polygon = SDS_tools.polygon_from_kml(geojson_polygon)
     polygon = SDS_tools.smallest_rectangle(polygon)
 
@@ -55,12 +55,12 @@ def initial_settings(sitename):
 
     # TODO: Set sat list and date range
     # Satellites
-    sat_list = ['L5', 'L7', 'L8', 'L9', 'S2']
+    sat_list = ['S2']
     # Name of the site
     sitename = sitename
 
     # Filepath where data will be stored
-    filepath_data = r'D:\coastsat_data'
+    filepath_data = os.path.join(r'D:\coastsat_data\antarctica')
 
     # Put all the inputs into a dictionary
     inputs = {
@@ -71,35 +71,37 @@ def initial_settings(sitename):
         'filepath': filepath_data,
         # 'excluded_epsg_codes': ['32609'],
         # 'LandsatWRS': '055022',
-        'S2tile': '10UDU',
+        # 'S2tile': '10UDU',
         # 'months': [7, 8, 9, 10],
         # 'skip_L7_SLC': True
+        # 'include_T2': True
     }
+
 
     # Before downloading the images, check how many images are available for your inputs
     # SDS_download.check_images_available(inputs)
 
     # Retrieve satellite images from GEE
-    # metadata = SDS_download.retrieve_images(inputs)
+    metadata = SDS_download.retrieve_images(inputs)
     metadata = SDS_download.get_metadata(inputs)
 
     # Settings for the shoreline extraction
     settings = {
         # General parameters:
-        'cloud_thresh': 0.04,  # Threshold on maximum cloud cover
+        'cloud_thresh': 0.6,  # Threshold on maximum cloud cover
         'dist_clouds': 300,  # Distance around clouds where shoreline can't be mapped
-        'output_epsg': 3157,  # EPSG code of spatial reference system desired for the output
+        'output_epsg': 3031,  # EPSG code of spatial reference system desired for the output
         # Quality control:
         'check_detection': False,  # If True, shows each shoreline detection to the user for validation
-        'adjust_detection': False,  # If True, allows user to adjust the position of each shoreline by changing the threshold
+        'adjust_detection': True,  # If True, allows user to adjust the position of each shoreline by changing the threshold
         'save_figure': True,  # If True, saves a figure showing the mapped shoreline for each image
         # [ONLY FOR ADVANCED USERS] Shoreline detection parameters:
-        'min_beach_area': 1000,  # Minimum area (in metres^2) for an object to be labelled as a beach
+        'min_beach_area': 500,  # Minimum area (in metres^2) for an object to be labelled as a beach
         'min_length_sl': 500,  # Minimum length (in metres) of shoreline perimeter to be valid
         'cloud_mask_issue': False,  # Switch this parameter to True if sand pixels are masked (in black) on many images
-        'sand_color': 'default',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
+        'sand_color': 'latest',  # 'default', 'latest', 'dark' (for grey/black sand beaches) or 'bright' (for white sand beaches)
         'pan_off': False,  # True to switch pansharpening off for Landsat 7/8/9 imagery
-        's2cloudless_prob': 40,  # Threshold to identify cloud pixels in the s2cloudless probability mask
+        's2cloudless_prob': 85,  # Threshold to identify cloud pixels in the s2cloudless probability mask
         # Add the inputs defined previously
         'inputs': inputs,
     }
@@ -145,7 +147,7 @@ def batch_shoreline_detection(metadata, settings, inputs):
 
     # Create a reference shoreline (helps to identify outliers and false detections)
     # settings['reference_shoreline'] = SDS_preprocess.get_reference_sl(metadata, settings)
-    settings['reference_shoreline'] = SDS_preprocess.get_reference_sl_from_geojson(f"REFERENCE_SHORELINE_{settings['inputs']['sitename']}", os.path.join(r'D:\Inputs\reference_shorelines'), settings['output_epsg'])
+    settings['reference_shoreline'] = SDS_preprocess.get_reference_sl_from_geojson(f"REFERENCE_SHORELINE_{settings['inputs']['sitename']}", os.path.join(r'D:\Inputs\antarctica\reference_shorelines'), settings['output_epsg'])
     # Set the max distance (in meters) allowed from the reference shoreline for a detected shoreline to be valid
     settings['max_dist_ref'] = 100
 
@@ -223,7 +225,7 @@ def shoreline_analysis(output, settings):
 
     # Option 2: Retrieve transects from geojson file
     geojson_transects = os.path.join(
-        r'D:\Inputs\transects', f"TRANSECTS_{settings['inputs']['sitename']}.geojson"
+        r'D:\Inputs\antarctica\transects', f"TRANSECTS_{settings['inputs']['sitename']}.geojson"
     )
     # C:\Users\psteeves\coastal\planetscope_coastsat\user_inputs\transects
     # transects = SDS_tools.transects_from_geojson()
@@ -597,6 +599,14 @@ def time_series_post_processing(transects, settings, cross_distance_tidally_corr
                     label=seas,
                     ms=5,
                 )
+            for seas in dict_seas.keys():
+                if len(dict_seas[seas]['dates']) > 1:
+                    ax.plot(dict_seas[seas]['dates'],
+                            fitted_vals_seas[seas],
+                            '--',
+                            color=season_colors[seas],
+                            label=f"{seas} trend = {trend_seas[seas]:.2f} m/yr")
+
             ax.plot(dates_seas,y,'--',color='b', label='trend %.1f m/year'%trend)
             ax.legend(
                 loc='lower left',
@@ -689,17 +699,17 @@ def slope_estimation(settings, cross_distance, output):
         os.makedirs(fp_slopes)
     print(f'Outputs will be saved in {fp_slopes}.')
 
-    if 'S2' in output['satname']:
-        idx_S2 = np.array([_ == 'S2' for _ in output['satname']])
-        for key in output.keys():
-            output[key] = [output[key][_] for _ in np.where(~idx_S2)[0]]
+    # if 'S2' in output['satname']:
+    #     idx_S2 = np.array([_ == 'S2' for _ in output['satname']])
+    #     for key in output.keys():
+    #         output[key] = [output[key][_] for _ in np.where(~idx_S2)[0]]
 
     output = SDS_tools.remove_duplicates(output)
     # remove inaccurate georeferencing (set threshold to 10 m)
     output = SDS_tools.remove_inaccurate_georef(output, 10)
 
     geojson_transects = os.path.join(
-        r'D:\Inputs\transects', f"TRANSECTS_{settings['inputs']['sitename']}.geojson"
+        r'D:\Inputs\antarctica\transects', f"TRANSECTS_{settings['inputs']['sitename']}.geojson"
     )
     transects = SDS_tools.transects_from_geojson(geojson_transects)
 
@@ -726,14 +736,14 @@ def slope_estimation(settings, cross_distance, output):
     # Load FES2022 configuration for tide calculation
     print("Loading FES2022 config file...")
     config_filepath = os.pardir
-    config = os.path.join(config_filepath, 'fes2022_clipped.yaml')
+    config = os.path.join(config_filepath, 'fes2022_antarctica.yaml')
     handlers = pyfes.load_config(config)
     print("Config file loaded")
     ocean_tide = handlers['tide']
     load_tide = handlers['radial']
 
     # Calculate tides at centroid
-    centroid = [-123.5048818465014, 48.652083471973725]
+    centroid = [-58.92287639912024, -62.56454584272723]
     centroid[0] = centroid[0] + 360 if centroid[0] < 0 else centroid[0]
 
     # Generate full time-series tide data for graphing
@@ -908,8 +918,8 @@ def calculate_and_save_trends(transects, cross_distance_tidally_corrected, outpu
 
 
 def main():
-    for filename in os.listdir(r'D:\Inputs'):
-        if filename.startswith('SAANICH_PENINSULA') and filename.endswith('.kml'):
+    for filename in sorted(os.listdir(r'D:\Inputs\antarctica'), reverse=True):
+        if  filename.endswith(('.kml')):
             sitename = filename[:-4]
             print(f'Starting site: {sitename}')
 

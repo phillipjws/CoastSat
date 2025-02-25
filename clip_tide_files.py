@@ -54,14 +54,14 @@ def clip_to_region(nc_files, geometry, output_dir):
 
 def main():
     # Path to the GeoJSON file
-    geojson_file = r"C:\Users\psteeves\coastal\canada_region.geojson"
+    geojson_file = r"C:\Users\psteeves\coastal\antarctic.geojson"
 
     # Directories containing NetCDF files
     load_tide_dir = r"C:\Users\psteeves\coastal\load_tide"
     ocean_tide_dir = r"C:\Users\psteeves\coastal\ocean_tide"
 
     # Output directory for clipped files
-    output_dir = r"C:\Users\psteeves\coastal\clipped_files"
+    output_dir = r"C:\Users\psteeves\coastal\clipped_antarctic_files"
 
     # Load the geometry
     geometry = get_geometry_from_geojson(geojson_file)
