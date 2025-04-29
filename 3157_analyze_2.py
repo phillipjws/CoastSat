@@ -169,7 +169,7 @@ def batch_shoreline_detection(metadata, settings, inputs):
     # Remove duplicates (images taken on the same date by the same satellite)
     output = SDS_tools.remove_duplicates(output)
     # Remove inaccurate georeferencing (set threshold to 10 m)
-    output = SDS_tools.remove_inaccurate_georef(output, 10)
+    output = SDS_tools.remove_inaccurate_georef(output, 12)
 
     # For GIS applications, save output into a GEOJSON layer
     geomtype = 'points'  # Choose 'points' or 'lines' for the layer geometry
@@ -718,7 +718,7 @@ def slope_estimation(settings, cross_distance, output):
 
     output = SDS_tools.remove_duplicates(output)
     # remove inaccurate georeferencing (set threshold to 10 m)
-    output = SDS_tools.remove_inaccurate_georef(output, 12)
+    output = SDS_tools.remove_inaccurate_georef(output, 10)
 
     geojson_transects = os.path.join(
         r'D:\Inputs\3157\transects', f"TRANSECTS_{settings['inputs']['sitename']}.geojson"
@@ -755,7 +755,7 @@ def slope_estimation(settings, cross_distance, output):
     load_tide = handlers['radial']
 
     # Calculate tides at centroid
-    centroid = [-125.14854780988611, 48.95024086015022]
+    centroid = [-124.09752855055802, 48.42984957962611]
     centroid[0] = centroid[0] + 360 if centroid[0] < 0 else centroid[0]
 
     # Generate full time-series tide data for graphing

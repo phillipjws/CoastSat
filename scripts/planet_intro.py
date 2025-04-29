@@ -210,7 +210,7 @@ for day, items in grouped.items():
             "geometry": mapping(merged_geom.intersection(aoi_geom))
         })
 
-print("Days passing 50% overlap criterion:", len(valid_days.keys()))
+print("Days passing 90% overlap criterion:", len(valid_days.keys()))
 
 merged_collection = {
     "type": "FeatureCollection",
@@ -252,7 +252,7 @@ def create_cloud_filter_request(item_id):
 item_cloud = {}
 
 # %% [markdown]
-# Itterate over all of the images found using the data API, making a request for AOI based cloud cover.
+# Iterate over all of the images found using the data API, making a request for AOI based cloud cover.
 # 
 # Could cover requests take about 10 min to be processed on Planets side. The first time running will place the request and once activated the request will return a cloud cover value. Placing the request for 300 images takes approximately 10 min. 
 # 
@@ -332,7 +332,7 @@ year_months = [img_id[:6] for img_id in order_imagery]
 year_month_counts = Counter(year_months)
 
 # Convert year-month strings to datetime objects for plotting
-year_month_objects = [datetime.datetime.strptime(year_month, '%Y%m') for year_month in year_month_counts.keys()]
+year_month_objects = [datetime.strptime(year_month, '%Y%m') for year_month in year_month_counts.keys()]
 counts = list(year_month_counts.values())
 
 # Create a histogram
